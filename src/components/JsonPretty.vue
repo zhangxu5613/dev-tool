@@ -1,24 +1,27 @@
 <template>
     <div>
         <div class="line"></div>
-        <el-menu :default-active="activeIndex2" class="el-menu-demo" mode="horizontal" @select="handleSelect"
-            background-color="#545c64" text-color="#fff" active-text-color="#ffd04b">
-            <el-menu-item index="1">处理中心</el-menu-item>
-            <el-submenu index="2">
-                <template slot="title">我的工作台</template>
-                <el-menu-item index="2-1" font="Warning">选项1</el-menu-item>
-                <el-menu-item index="2-2">选项2</el-menu-item>
-                <el-menu-item index="2-3">选项3</el-menu-item>
-                <el-submenu index="2-4">
-                    <template slot="title">选项4</template>
-                    <el-menu-item index="2-4-1">选项1</el-menu-item>
-                    <el-menu-item index="2-4-2">选项2</el-menu-item>
-                    <el-menu-item index="2-4-3">选项3</el-menu-item>
-                </el-submenu>
-            </el-submenu>
-            <el-menu-item index="3" disabled>消息中心</el-menu-item>
-        </el-menu>
-        <div class="container" style="text-align: left;">
+        <el-tabs type="border-card" style="margin: 0 200px;">
+            <el-tab-pane>
+                <span slot="label"><i class="el-icon-date"></i> Json处理</span>
+                <el-menu :default-active="activeIndex" class="el-menu-demo" mode="horizontal" @select="handleSelect">
+                    <el-menu-item index="json-pretty">格式化</el-menu-item>
+                    <el-menu-item index="json-path">jsonpath</el-menu-item>
+                    <el-menu-item index="json-diff">json-diff</el-menu-item>
+                </el-menu>
+            </el-tab-pane>
+            <el-tab-pane label="消息中心"><span slot="label"><i class="el-icon-date"></i>编解码</span>
+                <el-menu :default-active="activeIndex" class="el-menu-demo" mode="horizontal" @select="handleSelect">
+                    <el-menu-item index="decode-md5">Md5</el-menu-item>
+                    <el-menu-item index="decode-base64">base64</el-menu-item>
+                    <el-menu-item index="decode-url">url</el-menu-item>
+                </el-menu>
+            </el-tab-pane>
+            <el-tab-pane label="角色管理">角色管理</el-tab-pane>
+            <el-tab-pane label="定时任务补偿">定时任务补偿</el-tab-pane>
+        </el-tabs>
+
+        <div v-if='showContent == "json-pretty"' class="container" style="text-align: left;">
             <div class="half">
                 <el-input type="textarea" id="json-src" :rows="textareaRows" placeholder="请输入内容" v-model="json_in"
                     @input="jsonKeyUp">
@@ -39,11 +42,10 @@
 </template>
 
 <script>
-import JSONFormat from './jsoneditor';
 import VueJsonPretty from 'vue-json-pretty';
 import 'vue-json-pretty/lib/styles.css';
 export default {
-    name: 'HelloWorld',
+    name: 'JsonPretty',
     props: {
         msg: String
     },
@@ -52,8 +54,39 @@ export default {
     },
     data() {
         return {
+            title: [
+                {
+                    name: "title1",
+                    subTitle: [
+                        {
+                            name: "sub1-1",
+                        },
+                        {
+                            name: "sub1-2",
+                        },
+                        {
+                            name: "sub1-3",
+                        }
+                    ]
+                },
+                {
+                    name: "title2",
+                    subTitle: [
+                        {
+                            name: "sub2-1",
+                        },
+                        {
+                            name: "sub2-2",
+                        },
+                        {
+                            name: "sub2-3",
+                        }
+                    ]
+                }
+            ],
             activeIndex: '1',
             activeIndex2: '1',
+            showContent: "json-pretty",
             json_in: "",
             json_out_html: '',
             textareaRows: 20,
@@ -66,6 +99,7 @@ export default {
     methods: {
         handleSelect(key, keyPath) {
             console.log(key, keyPath);
+            this.showContent = key;
         },
         loadExternalCSS() {
             const link = document.createElement('link');
@@ -96,8 +130,6 @@ export default {
         jsonKeyUp(data) {
             try {
                 this.json_out = JSON.parse(data);
-                let json_fomat = new JSONFormat(data);
-                this.json_out_html = json_fomat.toString();
             } catch (error) {
                 console.log(error)
                 this.json_out = error
@@ -117,6 +149,12 @@ export default {
         }
     },
     mounted() {
+        for (let one in this.title) {
+            console.log(one.name)
+            if (one.name == this.showingMenu) {
+                this.subTitle = one.subTitle;
+            }
+        }
         this.loadExternalCSS();
         this.calculateTextareaRows();
     }
@@ -161,21 +199,18 @@ a {
     /* 禁止 textarea 的大小调整 */
 }
 
-.indent {
-    margin-left: 500px;
-}
 
 .container {
     display: grid;
     grid-template-columns: 1fr 1fr;
     /* 将容器分为两列，每列宽度相等 */
-    width: 98%;
+    width: 100%;
     /* 设置容器宽度为网页宽度的 80% */
     margin: 0 auto;
     /* 居中容器 */
     height: auto;
     /* 设置容器高度为视口高度 */
-    border: 1px solid black;
+    border: 1px solid rgb(31, 204, 5);
     /* 为了可视化效果，添加边框样式 */
 }
 
