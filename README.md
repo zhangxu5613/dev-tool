@@ -22,3 +22,7 @@ pnpm run lint
 
 ### Customize configuration
 See [Configuration Reference](https://cli.vuejs.org/config/).
+
+pnpm install vue-code-diff -S
+pnpm i element-ui -S
+

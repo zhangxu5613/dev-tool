@@ -21,7 +21,8 @@
             <el-tab-pane label="定时任务补偿">定时任务补偿</el-tab-pane>
         </el-tabs>
 
-        <div v-if='showContent == "json-pretty"' class="container" style="text-align: left;">
+        <div v-if='showContent == "json-pretty"' style="text-align: left; width: auto; margin: 0 200px; display: grid;
+    grid-template-columns: 1fr 1fr;">
             <div class="half">
                 <el-input type="textarea" id="json-src" :rows="textareaRows" placeholder="请输入内容" v-model="json_in"
                     @input="jsonKeyUp">
@@ -38,11 +39,33 @@
                     :showLineNumber="showLineNumberOption" />
             </div>
         </div>
+        <div id="app" v-if='showContent == "json-diff"' style="width: auto; margin: 0 200px;">
+            <div style="display: grid;    grid-template-columns: 10fr 1fr 10fr;">
+                <div class=" half">
+                    <el-input type="textarea" :rows="10" placeholder="请输入内容" v-model="json_src">
+                    </el-input>
+                </div>
+                <div style="margin-top: auto; margin-bottom: auto ;">
+                    <!-- <el-button type="primary" round @click="doCompare">比较</el-button> -->
+                </div>
+                <div class="half">
+                    <el-input type="textarea" :rows="10" placeholder="请输入内容" v-model="json_dst">
+                    </el-input>
+                </div>
+            </div>
+            <div class="compare">
+                <CodeDiff class="center" :old-string="json_src" :new-string="json_dst" :drawFileList="true"
+                    :context="1000" outputFormat="side-by-side" />
+
+            </div>
+        </div>
     </div>
 </template>
 
 <script>
 import VueJsonPretty from 'vue-json-pretty';
+import CodeDiff from 'vue-code-diff'
+
 import 'vue-json-pretty/lib/styles.css';
 export default {
     name: 'JsonPretty',
@@ -50,40 +73,13 @@ export default {
         msg: String
     },
     components: {
-        VueJsonPretty
+        VueJsonPretty,
+        CodeDiff
     },
     data() {
         return {
-            title: [
-                {
-                    name: "title1",
-                    subTitle: [
-                        {
-                            name: "sub1-1",
-                        },
-                        {
-                            name: "sub1-2",
-                        },
-                        {
-                            name: "sub1-3",
-                        }
-                    ]
-                },
-                {
-                    name: "title2",
-                    subTitle: [
-                        {
-                            name: "sub2-1",
-                        },
-                        {
-                            name: "sub2-2",
-                        },
-                        {
-                            name: "sub2-3",
-                        }
-                    ]
-                }
-            ],
+            json_src: "",
+            json_dst: "",
             activeIndex: '1',
             activeIndex2: '1',
             showContent: "json-pretty",
@@ -184,7 +180,7 @@ a {
 
 .half {
     border: 1px solid black;
-    margin: 5px;
+    margin: 3px;
     /* 为了可视化效果，添加边框样式 */
 }
 
@@ -199,10 +195,9 @@ a {
     /* 禁止 textarea 的大小调整 */
 }
 
-
-.container {
+.ten-one-ten {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 10fr 1fr 10fr;
     /* 将容器分为两列，每列宽度相等 */
     width: 100%;
     /* 设置容器宽度为网页宽度的 80% */
