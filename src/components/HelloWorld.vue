@@ -18,15 +18,21 @@
             </el-submenu>
             <el-menu-item index="3" disabled>消息中心</el-menu-item>
         </el-menu>
-        <div class="container">
+        <div class="container" style="text-align: left;">
             <div class="half">
                 <el-input type="textarea" id="json-src" :rows="textareaRows" placeholder="请输入内容" v-model="json_in"
                     @input="jsonKeyUp">
                 </el-input>
             </div>
             <div class="half">
-                <div id='json-target' v-html="json_out_html">
+                <div style="margin: 10px;">
+                    <el-checkbox v-model="showLineNumberOption">显示行号</el-checkbox>
+                    <el-checkbox v-model="showLineOption">显示对齐线</el-checkbox>
                 </div>
+                <div class="divider"></div>
+                <div style="border:  2px;"> </div>
+                <vue-json-pretty v-if='json_out != ""' :data="json_out" showLength :showLine="showLineOption"
+                    :showLineNumber="showLineNumberOption" />
             </div>
         </div>
     </div>
@@ -34,18 +40,27 @@
 
 <script>
 import JSONFormat from './jsoneditor';
+import VueJsonPretty from 'vue-json-pretty';
+import 'vue-json-pretty/lib/styles.css';
 export default {
     name: 'HelloWorld',
     props: {
         msg: String
+    },
+    components: {
+        VueJsonPretty
     },
     data() {
         return {
             activeIndex: '1',
             activeIndex2: '1',
             json_in: "",
-            json_out_html: '<div><span>null</span></div>',
-            textareaRows: 20
+            json_out_html: '',
+            textareaRows: 20,
+            json_out: "",
+            showLineOption: false,
+            showLineNumberOption: false,
+            showItem: true
         };
     },
     methods: {
@@ -80,9 +95,9 @@ export default {
         },
         jsonKeyUp(data) {
             try {
+                this.json_out = JSON.parse(data);
                 let json_fomat = new JSONFormat(data);
                 this.json_out_html = json_fomat.toString();
-                console.log(this.json_out_html)
             } catch (error) {
                 console.log(error)
                 this.json_out = error
@@ -95,6 +110,10 @@ export default {
             const padding = parseInt(getComputedStyle(textareaElement).paddingTop) + parseInt(getComputedStyle(textareaElement).paddingBottom);
             const newRows = Math.floor((windowHeight - padding) * 85 / 100 / lineHeight);
             this.textareaRows = newRows;
+        },
+        changeItemShow() {
+            console.log("click")
+            this.showItem = !this.showItem
         }
     },
     mounted() {
@@ -142,6 +161,10 @@ a {
     /* 禁止 textarea 的大小调整 */
 }
 
+.indent {
+    margin-left: 500px;
+}
+
 .container {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -154,5 +177,12 @@ a {
     /* 设置容器高度为视口高度 */
     border: 1px solid black;
     /* 为了可视化效果，添加边框样式 */
+}
+
+.divider {
+    width: 100%;
+    height: 1px;
+    background-color: #000;
+    margin: 0px;
 }
 </style>
