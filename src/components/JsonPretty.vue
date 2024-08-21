@@ -59,12 +59,16 @@
 
             </div>
         </div>
+        <div v-if='showContent == "json-path"' style="width: auto; margin: 0 200px;">
+            <JsonXmlPathIndex />
+        </div>
     </div>
 </template>
 
 <script>
 import VueJsonPretty from 'vue-json-pretty';
 import CodeDiff from 'vue-code-diff'
+import JsonXmlPathIndex from './jsonpath/index.vue'
 
 import 'vue-json-pretty/lib/styles.css';
 export default {
@@ -74,7 +78,8 @@ export default {
     },
     components: {
         VueJsonPretty,
-        CodeDiff
+        CodeDiff,
+        JsonXmlPathIndex
     },
     data() {
         return {
