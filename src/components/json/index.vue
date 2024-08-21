@@ -59,10 +59,6 @@ export default {
         handleSelect(key, keyPath) {
             console.log(key, keyPath);
             this.showContent = key;
-        },
-        changeItemShow() {
-            console.log("click")
-            this.showItem = !this.showItem
         }
     },
     mounted() {

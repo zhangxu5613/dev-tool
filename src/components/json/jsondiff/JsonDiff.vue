@@ -28,7 +28,6 @@ import CodeDiff from 'vue-code-diff'
 export default {
     name: 'JsonDiff',
     props: {
-        msg: String
     },
     components: {
         CodeDiff
@@ -43,10 +42,6 @@ export default {
         handleSelect(key, keyPath) {
             console.log(key, keyPath);
             this.showContent = key;
-        },
-        changeItemShow() {
-            console.log("click")
-            this.showItem = !this.showItem
         }
     },
     mounted() {
