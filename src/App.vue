@@ -1,16 +1,16 @@
 <template>
   <div id="app">
-    <JsonPretty msg="Welcome to Your Vue.js App" />
+    <JsonOperation msg="Welcome to Your Vue.js App" />
   </div>
 </template>
 
 <script>
-import JsonPretty from './components/JsonPretty.vue'
+import JsonOperation from './components/json/index.vue'
 
 export default {
   name: 'App',
   components: {
-    JsonPretty
+    JsonOperation
   }
 }
 </script>
