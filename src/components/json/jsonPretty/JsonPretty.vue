@@ -1,12 +1,17 @@
 <template>
     <div style="text-align: left; display: grid;  grid-template-columns: 1fr 1fr;">
         <div class="half">
+            <div style="margin: 10px;">
+                <el-checkbox v-model="excludeSpecial" @change="freshJson">去除转义</el-checkbox>
+            </div>
             <el-input type="textarea" id="json-src" :rows="textareaRows" placeholder="请输入内容" v-model="json_in"
                 @input="jsonKeyUp">
             </el-input>
         </div>
         <div class="half">
             <div style="margin: 10px;">
+                <el-button type="primary" icon="el-icon-document-copy" circle style="margin-right: 15px;" size="mini"
+                    @click="copyToClipboard"></el-button>
                 <el-checkbox v-model="showLineNumberOption">显示行号</el-checkbox>
                 <el-checkbox v-model="showLineOption">显示对齐线</el-checkbox>
             </div>
@@ -35,8 +40,9 @@ export default {
             json_in: "",
             textareaRows: 20,
             json_out: "",
-            showLineOption: false,
+            showLineOption: true,
             showLineNumberOption: false,
+            excludeSpecial: true,
             showItem: true
         };
     },
@@ -49,9 +55,32 @@ export default {
             try {
                 this.json_out = JSON.parse(data);
             } catch (error) {
-                console.log(error)
-                this.json_out = error
+                console.log(data)
+                if (this.excludeSpecial) {
+                    try {
+                        console.log(data.replace(/[\r\t\\]/g, ''))
+                        this.json_out = JSON.parse(data.replace(/[\r\t\\]/g, ''));
+                    } catch (error) {
+                        this.json_out = error.toString()
+                    }
+                } else {
+                    this.json_out = error.toString()
+                }
             }
+        },
+        copyToClipboard() {
+            console.log("copyToClipboard")
+            navigator.clipboard.writeText(JSON.stringify(this.json_out, null, 4))
+                .then(() => {
+                    console.log('已复制到剪贴板');
+                })
+                .catch((error) => {
+                    console.error('复制失败:', error);
+                });
+        },
+        freshJson() {
+            console.log(this.json_in)
+            this.jsonKeyUp(this.json_in)
         },
         calculateTextareaRows() {
             const windowHeight = window.innerHeight;
