@@ -17,8 +17,10 @@
             </div>
             <div class="divider"></div>
             <div style="border:  2px;"> </div>
-            <vue-json-pretty v-if='json_out != ""' :data="json_out" showLength :showLine="showLineOption"
-                :showLineNumber="showLineNumberOption" />
+            <div style="height: 1075px; overflow: auto; border: 1px solid red; resize: none">
+                <vue-json-pretty v-if='json_out != ""' :data="json_out" showLength :showLine="showLineOption"
+                    :showLineNumber="showLineNumberOption" />
+            </div>
         </div>
     </div>
 </template>
