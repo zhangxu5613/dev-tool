@@ -23,6 +23,9 @@ pnpm run lint
 ### Customize configuration
 See [Configuration Reference](https://cli.vuejs.org/config/).
 
+npm install -g cnpm --registry=https://registry.npmmirror.com
+https://npmmirror.com/
+
 pnpm install vue-code-diff -S
 pnpm i element-ui -S
 pnpm install sass-loader --save-dev

@@ -63,9 +63,12 @@ export default {
 <style lang="scss" scoped>
 .json-tree {
   .json-tree-item {
-    margin: 20px 0px;
+    margin: 5px 0px;
 
     .json-tree-line {
+      margin-top: 1px;
+      margin-bottom: 1px;
+
       .path-btn {
         background: #37f;
         color: #fff;
@@ -74,6 +77,7 @@ export default {
         cursor: pointer;
         border-radius: 3px;
         margin-left: 20px;
+        margin-top: 0px;
       }
     }
 

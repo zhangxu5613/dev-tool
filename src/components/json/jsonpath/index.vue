@@ -2,14 +2,15 @@
   <div class="json-path">
     <el-row :gutter="20">
       <el-col :span="12">
-        <editor ref="aceEditor" v-model="content" width="100%" height="640" lang="json" :theme="theme" :options="{
-          enableBasicAutocompletion: true, //启用基本自动完成
-          enableSnippets: true, // 启用代码段
-          enableLiveAutocompletion: true, //启用实时自动完成
-          tabSize: 2, //制表符大小
-          fontSize: 14, //设置字号
-          showPrintMargin: false  //去除编辑器里的竖线
-        }" @init="editorInit" @input="editorInput"></editor>
+        <editor ref="aceEditor" v-model="content" width="100%" :height="input_height" lang="json" :theme="theme"
+          :options="{
+            enableBasicAutocompletion: true, //启用基本自动完成
+            enableSnippets: true, // 启用代码段
+            enableLiveAutocompletion: true, //启用实时自动完成
+            tabSize: 2, //制表符大小
+            fontSize: 14, //设置字号
+            showPrintMargin: false  //去除编辑器里的竖线
+          }" @init="editorInit" @input="editorInput"></editor>
       </el-col>
       <el-col :span="12">
         <div style="width: 100%;">
@@ -25,7 +26,7 @@
             </template>
           </el-input>
         </div>
-        <div class="json-path-parser">
+        <div class="json-path-parser" :style="{ height: output_height }">
           <div class="error-message" v-if="error">{{ errorMessage }}</div>
           <template v-else>
             <json-tree :data="parserArray"></json-tree>
@@ -53,7 +54,9 @@ export default {
       errorMessage: '',
       json: {},
       parserArray: [],
-      pathText: ''
+      pathText: '',
+      input_height: 640,
+      output_height: '600px'
     };
   },
   watch: {
@@ -72,6 +75,7 @@ export default {
   mounted() {
     this.editorInit()
     this.parserJson(this.content)
+    this.calculateTextareaRows()
   },
 
   methods: {
@@ -113,6 +117,10 @@ export default {
         this.error = true
         this.errorMessage = e.message
       }
+    },
+    calculateTextareaRows() {
+      this.input_height = window.innerHeight - 200;
+      this.output_height = (this.input_height - 40) + "px"
     },
     jsonPath(arr, json, basePath) {
       // 生成jsonpath
@@ -189,7 +197,7 @@ export default {
   padding: 10px 20px;
 
   .el-row {
-    height: 600px;
+    overflow: hidden;
 
     .el-col {
       text-align: left;
