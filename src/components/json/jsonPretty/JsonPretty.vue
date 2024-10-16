@@ -70,15 +70,51 @@ export default {
                 }
             }
         },
-        copyToClipboard() {
-            console.log("copyToClipboard")
-            navigator.clipboard.writeText(JSON.stringify(this.json_out, null, 4))
-                .then(() => {
+        copyToClipboardFallback(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";  // 避免在页面上滚动
+            textArea.style.top = 0;
+            textArea.style.left = 0;
+            textArea.style.width = "2em";
+            textArea.style.height = "2em";
+            textArea.style.padding = 0;
+            textArea.style.border = "none";
+            textArea.style.outline = "none";
+            textArea.style.boxShadow = "none";
+            textArea.style.background = "transparent";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
                     console.log('已复制到剪贴板');
-                })
-                .catch((error) => {
-                    console.error('复制失败:', error);
-                });
+                } else {
+                    console.error('复制失败');
+                }
+            } catch (err) {
+                console.error('复制失败:', err);
+            }
+
+            document.body.removeChild(textArea);
+        },
+
+        copyToClipboard() {
+            var textToCopy = JSON.stringify(this.json_out, null, 4);
+            console.log("copyToClipboard")
+            if (!navigator.clipboard) {
+                this.copyToClipboardFallback(textToCopy);
+            } else {
+                navigator.clipboard.writeText(textToCopy)
+                    .then(() => {
+                        console.log('已复制到剪贴板');
+                    })
+                    .catch((error) => {
+                        console.error('复制失败:', error);
+                    });
+            }
         },
         freshJson() {
             console.log(this.json_in)
