@@ -1,7 +1,7 @@
 <template>
     <div style="text-align: left; display: grid;  grid-template-columns: 1fr 1fr;">
         <div class="half">
-            <div style="margin: 10px;">
+            <div style="margin: 10px;height: 25px;">
                 <el-checkbox v-model="excludeSpecial" @change="freshJson">去除转义</el-checkbox>
             </div>
             <el-input type="textarea" id="json-src" :rows="textareaRows" placeholder="请输入内容" v-model="json_in"
@@ -9,7 +9,7 @@
             </el-input>
         </div>
         <div class="half">
-            <div style="margin: 10px;">
+            <div style="margin: 10px;height: 25px;">
                 <el-button type="primary" icon="el-icon-document-copy" circle style="margin-right: 15px;" size="mini"
                     @click="copyToClipboard"></el-button>
                 <el-checkbox v-model="showLineNumberOption">显示行号</el-checkbox>
@@ -17,7 +17,7 @@
             </div>
             <div class="divider"></div>
             <div style="border:  2px;"> </div>
-            <div style="height: 1075px; overflow: auto; border: 1px solid red; resize: none">
+            <div style="height: 1061px; overflow: auto; border: 1px solid red; resize: none">
                 <vue-json-pretty v-if='json_out != ""' :data="json_out" showLength :showLine="showLineOption"
                     :showLineNumber="showLineNumberOption" />
             </div>
@@ -121,12 +121,13 @@ export default {
             this.jsonKeyUp(this.json_in)
         },
         calculateTextareaRows() {
-            const windowHeight = window.innerHeight;
+            const windowHeight = 1269;
             const textareaElement = this.$el.querySelector('textarea');
             const lineHeight = parseInt(getComputedStyle(textareaElement).lineHeight);
             const padding = parseInt(getComputedStyle(textareaElement).paddingTop) + parseInt(getComputedStyle(textareaElement).paddingBottom);
             const newRows = Math.floor((windowHeight - padding) * 85 / 100 / lineHeight);
             this.textareaRows = newRows;
+            this.textareaRows = 50;
         }
     },
     mounted() {

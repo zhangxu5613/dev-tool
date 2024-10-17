@@ -5,7 +5,7 @@
 </template>
 
 <script>
-import JsonOperation from './components/json/index.vue'
+import JsonOperation from './components/index.vue'
 
 export default {
   name: 'App',
