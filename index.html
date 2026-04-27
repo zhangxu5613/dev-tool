@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>在线开发者工具箱 | JSON / Base64 / 时间戳 / 哈希 / 正则</title>
+    <meta name="description" content="免费在线开发者工具箱：JSON 格式化、Base64、URL 编解码、时间戳转换、哈希、UUID、正则测试等。" />
+    <link rel="stylesheet" href="style.css?v=11" />
+</head>
+<body>
+    <header class="site-header">
+        <div class="container header-inner">
+            <div class="logo">
+                <span class="logo-icon">{ }</span>
+                <span class="logo-text">开发者工具箱</span>
+            </div>
+            <nav class="nav" id="mainNav">
+                <a href="#" class="nav-item active" data-tab="json">JSON 工具</a>
+                <a href="#" class="nav-item" data-tab="timestamp">时间戳转换</a>
+                <a href="#" class="nav-item" data-tab="base64">Base64</a>
+                <a href="#" class="nav-item" data-tab="url">URL 编解码</a>
+                <a href="#" class="nav-item" data-tab="md5">MD5 加密</a>
+                <a href="#" class="nav-item" data-tab="hash">哈希计算</a>
+                <a href="#" class="nav-item" data-tab="uuid">UUID 生成</a>
+                <a href="#" class="nav-item" data-tab="regex">正则测试</a>
+            </nav>
+            <div class="header-actions">
+                <button id="themeToggle" class="icon-btn" title="切换主题">
+                    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container main-area">
+
+        <!-- ============ JSON 工具 ============ -->
+        <section class="tab-panel active" data-panel="json">
+            <div class="toolbar">
+                <div class="toolbar-left">
+                    <button class="btn btn-primary" data-action="format">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h12M3 18h18"/></svg>
+                        格式化
+                    </button>
+                    <button class="btn" data-action="compress">压缩</button>
+                    <button class="btn" data-action="escape">转义</button>
+                    <button class="btn" data-action="unescape">去转义</button>
+                    <button class="btn" data-action="unicode">Unicode→中文</button>
+                    <button class="btn" data-action="tochinese">中文→Unicode</button>
+                    <button class="btn" data-action="sample">示例</button>
+                    <button class="btn btn-danger" data-action="clear">清空</button>
+                </div>
+                <div class="toolbar-right">
+                    <label class="field-inline">
+                        缩进
+                        <select id="indentSize">
+                            <option value="2">2 空格</option>
+                            <option value="4" selected>4 空格</option>
+                            <option value="tab">Tab</option>
+                        </select>
+                    </label>
+                    <button class="btn" data-action="copy-input">复制输入</button>
+                    <button class="btn" data-action="copy-output">复制结果</button>
+                </div>
+            </div>
+
+            <div class="editor-wrap">
+                <section class="editor-pane">
+                    <div class="pane-header">
+                        <span class="pane-title">输入</span>
+                        <span id="inputInfo" class="pane-info">0 行 · 0 字符</span>
+                    </div>
+                    <div class="editor-body">
+                        <div class="gutter" id="inputGutter"><div>1</div></div>
+                        <textarea id="input" spellcheck="false" placeholder='在此粘贴或输入 JSON，例如：{"name":"张三","age":18}'></textarea>
+                    </div>
+                    <div id="statusBar" class="status-bar status-idle">
+                        <span id="statusText">等待输入...</span>
+                    </div>
+                </section>
+
+                <section class="editor-pane">
+                    <div class="pane-header">
+                        <span class="pane-title">结果</span>
+                        <div class="view-switch">
+                            <button class="switch-btn active" data-view="text">文本视图</button>
+                            <button class="switch-btn" data-view="tree">树形视图</button>
+                        </div>
+                    </div>
+                    <div class="editor-body">
+                        <div id="output" class="output-text"></div>
+                        <div id="tree" class="output-tree" hidden></div>
+                    </div>
+                    <div class="result-foot">
+                        <span id="outputInfo" class="pane-info">0 行 · 0 字符</span>
+                        <div class="tree-actions" id="treeActions" hidden>
+                            <button class="mini-btn" data-tree="expand">全部展开</button>
+                            <button class="mini-btn" data-tree="collapse">全部折叠</button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </section>
+
+        <!-- ============ 时间戳 ============ -->
+        <section class="tab-panel" data-panel="timestamp">
+            <div class="tool-card">
+                <h2 class="tool-title">时间戳转换</h2>
+
+                <div class="now-bar">
+                    <div>
+                        <span class="label">当前时间：</span>
+                        <span id="tsNowDate" class="mono">--</span>
+                    </div>
+                    <div>
+                        <span class="label">秒级：</span>
+                        <span id="tsNowSec" class="mono">--</span>
+                        <button class="mini-btn" data-copy="#tsNowSec">复制</button>
+                    </div>
+                    <div>
+                        <span class="label">毫秒级：</span>
+                        <span id="tsNowMs" class="mono">--</span>
+                        <button class="mini-btn" data-copy="#tsNowMs">复制</button>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-block">
+                        <label>时间戳 → 日期</label>
+                        <div class="row">
+                            <input type="text" id="tsInput" placeholder="输入秒或毫秒时间戳，如 1714213200 或 1714213200000" />
+                            <select id="tsUnit">
+                                <option value="auto">自动识别</option>
+                                <option value="s">秒</option>
+                                <option value="ms">毫秒</option>
+                            </select>
+                            <button class="btn btn-primary" data-action="ts-to-date">转换</button>
+                        </div>
+                        <div class="kv">
+                            <div><span class="kv-key">本地时间</span><span class="kv-val mono" id="tsLocal">-</span></div>
+                            <div><span class="kv-key">UTC 时间</span><span class="kv-val mono" id="tsUtc">-</span></div>
+                            <div><span class="kv-key">ISO 8601</span><span class="kv-val mono" id="tsIso">-</span></div>
+                        </div>
+                    </div>
+
+                    <div class="form-block">
+                        <label>日期 → 时间戳</label>
+                        <div class="row">
+                            <input type="datetime-local" id="dtInput" step="1" />
+                            <button class="btn btn-primary" data-action="date-to-ts">转换</button>
+                        </div>
+                        <div class="kv">
+                            <div><span class="kv-key">秒级时间戳</span><span class="kv-val mono" id="dtTsSec">-</span></div>
+                            <div><span class="kv-key">毫秒时间戳</span><span class="kv-val mono" id="dtTsMs">-</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ Base64 ============ -->
+        <section class="tab-panel" data-panel="base64">
+            <div class="tool-card">
+                <h2 class="tool-title">Base64 编解码</h2>
+                <div class="options">
+                    <label class="chk"><input type="checkbox" id="b64UrlSafe" /> URL Safe（- _ 代替 + /）</label>
+                    <label class="chk"><input type="checkbox" id="b64NoPad" /> 不填充 =</label>
+                </div>
+                <div class="dual-wrap">
+                    <div class="dual-pane">
+                        <div class="pane-header">
+                            <span class="pane-title">原文 / 输入</span>
+                            <button class="mini-btn" data-copy="#b64Left">复制</button>
+                        </div>
+                        <textarea id="b64Left" class="plain-area" placeholder="在此输入文本"></textarea>
+                    </div>
+                    <div class="dual-actions">
+                        <button class="btn btn-primary" data-action="b64-encode">编码 →</button>
+                        <button class="btn" data-action="b64-decode">← 解码</button>
+                        <button class="btn btn-danger" data-action="b64-clear">清空</button>
+                    </div>
+                    <div class="dual-pane">
+                        <div class="pane-header">
+                            <span class="pane-title">Base64 结果</span>
+                            <button class="mini-btn" data-copy="#b64Right">复制</button>
+                        </div>
+                        <textarea id="b64Right" class="plain-area" placeholder="在此粘贴 Base64 字符串以解码"></textarea>
+                    </div>
+                </div>
+                <div class="status-line" id="b64Status">就绪</div>
+            </div>
+        </section>
+
+        <!-- ============ URL 编解码 ============ -->
+        <section class="tab-panel" data-panel="url">
+            <div class="tool-card">
+                <h2 class="tool-title">URL 编解码</h2>
+                <div class="options">
+                    <label class="chk"><input type="radio" name="urlMode" value="component" checked /> encodeURIComponent</label>
+                    <label class="chk"><input type="radio" name="urlMode" value="uri" /> encodeURI</label>
+                </div>
+                <div class="dual-wrap">
+                    <div class="dual-pane">
+                        <div class="pane-header">
+                            <span class="pane-title">原文</span>
+                            <button class="mini-btn" data-copy="#urlLeft">复制</button>
+                        </div>
+                        <textarea id="urlLeft" class="plain-area" placeholder="在此输入原文，如 https://a.com/?key=你好"></textarea>
+                    </div>
+                    <div class="dual-actions">
+                        <button class="btn btn-primary" data-action="url-encode">编码 →</button>
+                        <button class="btn" data-action="url-decode">← 解码</button>
+                        <button class="btn btn-danger" data-action="url-clear">清空</button>
+                    </div>
+                    <div class="dual-pane">
+                        <div class="pane-header">
+                            <span class="pane-title">编码结果</span>
+                            <button class="mini-btn" data-copy="#urlRight">复制</button>
+                        </div>
+                        <textarea id="urlRight" class="plain-area" placeholder="在此粘贴编码后字符串以解码"></textarea>
+                    </div>
+                </div>
+                <div class="status-line" id="urlStatus">就绪</div>
+
+                <div class="sub-section">
+                    <h3>URL 组成分析</h3>
+                    <div class="row">
+                        <input type="text" id="urlParseInput" placeholder="例如：https://user:pw@example.com:8080/path/page?id=1&name=foo#top" />
+                        <button class="btn btn-primary" data-action="url-parse">解析</button>
+                    </div>
+                    <div class="kv" id="urlParseResult"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ 哈希计算 ============ -->
+        <section class="tab-panel" data-panel="hash">
+            <div class="tool-card">
+                <h2 class="tool-title">哈希计算</h2>
+                <label class="block-label">输入文本</label>
+                <textarea id="hashInput" class="plain-area" placeholder="在此输入要计算哈希的文本"></textarea>
+                <div class="row" style="margin-top:12px">
+                    <button class="btn btn-primary" data-action="hash-calc">计算</button>
+                    <button class="btn btn-danger" data-action="hash-clear">清空</button>
+                    <span class="status-line" id="hashStatus" style="margin-left:auto">就绪</span>
+                </div>
+                <div class="kv" id="hashResult">
+                    <div><span class="kv-key">MD5</span><span class="kv-val mono" data-hash="md5">-</span><button class="mini-btn" data-copy-from="md5">复制</button></div>
+                    <div><span class="kv-key">SHA-1</span><span class="kv-val mono" data-hash="sha1">-</span><button class="mini-btn" data-copy-from="sha1">复制</button></div>
+                    <div><span class="kv-key">SHA-256</span><span class="kv-val mono" data-hash="sha256">-</span><button class="mini-btn" data-copy-from="sha256">复制</button></div>
+                    <div><span class="kv-key">SHA-512</span><span class="kv-val mono" data-hash="sha512">-</span><button class="mini-btn" data-copy-from="sha512">复制</button></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ UUID ============ -->
+        <section class="tab-panel" data-panel="uuid">
+            <div class="tool-card">
+                <h2 class="tool-title">UUID 生成</h2>
+                <div class="row">
+                    <label class="field-inline">
+                        数量
+                        <input type="number" id="uuidCount" value="5" min="1" max="1000" style="width:110px" />
+                    </label>
+                    <label class="chk"><input type="checkbox" id="uuidUpper" /> 大写</label>
+                    <label class="chk"><input type="checkbox" id="uuidNoDash" /> 去掉连字符</label>
+                    <button class="btn btn-primary" data-action="uuid-gen">生成</button>
+                    <button class="btn" data-action="uuid-copy">复制全部</button>
+                    <button class="btn btn-danger" data-action="uuid-clear">清空</button>
+                </div>
+                <textarea id="uuidOutput" class="plain-area" style="min-height:340px;margin-top:14px" readonly placeholder="点击"生成"按钮"></textarea>
+            </div>
+        </section>
+
+        <!-- ============ 正则测试 ============ -->
+        <section class="tab-panel" data-panel="regex">
+            <div class="tool-card">
+                <h2 class="tool-title">正则表达式测试</h2>
+                <div class="regex-line">
+                    <span class="regex-slash">/</span>
+                    <input type="text" id="regexPattern" class="mono" placeholder="正则表达式" />
+                    <span class="regex-slash">/</span>
+                    <input type="text" id="regexFlags" class="mono" value="g" style="width:90px" placeholder="flags" />
+                </div>
+                <div class="options">
+                    <label class="chk"><input type="checkbox" class="rf" value="g" checked /> g 全局</label>
+                    <label class="chk"><input type="checkbox" class="rf" value="i" /> i 忽略大小写</label>
+                    <label class="chk"><input type="checkbox" class="rf" value="m" /> m 多行</label>
+                    <label class="chk"><input type="checkbox" class="rf" value="s" /> s 单行</label>
+                    <label class="chk"><input type="checkbox" class="rf" value="u" /> u Unicode</label>
+                </div>
+                <label class="block-label">测试文本</label>
+                <textarea id="regexInput" class="plain-area" placeholder="在此输入要测试的文本"></textarea>
+                <div class="row" style="margin-top:12px">
+                    <span class="status-line" id="regexStatus">就绪</span>
+                </div>
+                <div class="pane-header">
+                    <span class="pane-title">高亮匹配</span>
+                </div>
+                <div id="regexHighlight" class="output-text" style="min-height:200px"></div>
+                <div class="pane-header">
+                    <span class="pane-title">匹配列表</span>
+                </div>
+                <div id="regexMatches" class="output-tree" style="min-height:120px"></div>
+            </div>
+        </section>
+
+        <section class="features">
+            <h2>关于本工具箱</h2>
+            <div class="feature-grid">
+                <div class="feature-card"><div class="feature-icon">{}</div><h3>纯前端</h3><p>所有工具都在你的浏览器本地运行，数据不上传，安全可靠。</p></div>
+                <div class="feature-card"><div class="feature-icon">⚡</div><h3>即时响应</h3><p>输入变化时自动出结果，无需手动点击，操作流畅。</p></div>
+                <div class="feature-card"><div class="feature-icon">🌙</div><h3>深色主题</h3><p>支持明/暗双主题，长时间使用眼睛更舒适。</p></div>
+                <div class="feature-card"><div class="feature-icon">🧩</div><h3>多合一</h3><p>JSON、Base64、时间戳、哈希、UUID、正则，一站搞定。</p></div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <p>© 2026 开发者工具箱 · 纯前端实现，数据不上传</p>
+        </div>
+    </footer>
+
+    <div id="toast" class="toast" hidden></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/spark-md5@3.0.2/spark-md5.min.js"></script>
+    <script src="script.js?v=11"></script>
+</body>
+</html>
