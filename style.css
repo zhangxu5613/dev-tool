@@ -619,6 +619,24 @@ select {
     text-align: center;
 }
 
+.site-footer p { margin: 4px 0; }
+
+.site-footer .beian {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.site-footer .beian a {
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color 0.15s;
+}
+
+.site-footer .beian a:hover {
+    color: var(--primary);
+    text-decoration: underline;
+}
+
 /* Toast */
 .toast {
     position: fixed;
