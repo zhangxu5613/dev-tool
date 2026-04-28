@@ -1134,4 +1134,351 @@
         regexStatus.textContent = `匹配 ${matches.length} 次`;
         regexStatus.style.color = matches.length ? 'var(--success)' : 'var(--text-muted)';
     }
+
+    // ================================================================
+    // ===================== HTTP 请求（Postman 风格） =====================
+    // ================================================================
+    const httpMethodEl = document.getElementById('httpMethod');
+    const httpUrlEl = document.getElementById('httpUrl');
+    const httpSendBtn = document.getElementById('httpSend');
+    const httpSaveBtn = document.getElementById('httpSave');
+    const httpParamsEl = document.getElementById('httpParams');
+    const httpHeadersEl = document.getElementById('httpHeaders');
+    const httpBodyEl = document.getElementById('httpBody');
+    const httpFormEditor = document.getElementById('httpFormEditor');
+    const httpFormAddBtn = document.getElementById('httpFormAdd');
+    const httpRespStatus = document.getElementById('httpRespStatus');
+    const httpRespTime = document.getElementById('httpRespTime');
+    const httpRespSize = document.getElementById('httpRespSize');
+    const httpRespBody = document.getElementById('httpRespBody');
+    const httpRespHeaders = document.getElementById('httpRespHeaders');
+    const httpRespRaw = document.getElementById('httpRespRaw');
+    const httpHistoryEl = document.getElementById('httpHistory');
+
+    let lastRespText = '';
+    let lastRespContentType = '';
+
+    // ---- 子 tab 切换（请求 / 响应） ----
+    document.getElementById('httpReqTabs').addEventListener('click', (e) => {
+        const b = e.target.closest('.http-tab');
+        if (!b) return;
+        const name = b.dataset.httpsub;
+        document.querySelectorAll('#httpReqTabs .http-tab').forEach(x => x.classList.toggle('active', x === b));
+        document.querySelectorAll('.http-subpanel[data-httpsub]').forEach(p => p.classList.toggle('active', p.dataset.httpsub === name));
+    });
+
+    document.querySelectorAll('.http-tabs.sub').forEach(grp => {
+        grp.addEventListener('click', (e) => {
+            const b = e.target.closest('.http-tab');
+            if (!b) return;
+            const name = b.dataset.httpresp;
+            grp.querySelectorAll('.http-tab').forEach(x => x.classList.toggle('active', x === b));
+            document.querySelectorAll('.http-subpanel[data-httpresp]').forEach(p => p.classList.toggle('active', p.dataset.httpresp === name));
+        });
+    });
+
+    // ---- KV 编辑器 ----
+    function kvRow(key = '', val = '', enabled = true) {
+        const row = document.createElement('div');
+        row.className = 'kv-row';
+        row.innerHTML = `
+            <input type="checkbox" ${enabled ? 'checked' : ''} />
+            <input type="text" class="kv-k" placeholder="Key" value="${escapeHTML(key)}" />
+            <input type="text" class="kv-v" placeholder="Value" value="${escapeHTML(val)}" />
+            <button class="kv-del" title="删除">×</button>
+        `;
+        row.querySelector('.kv-del').addEventListener('click', () => row.remove());
+        return row;
+    }
+
+    function kvRead(container) {
+        const out = [];
+        container.querySelectorAll('.kv-row').forEach(r => {
+            const on = r.querySelector('input[type=checkbox]').checked;
+            const k = r.querySelector('.kv-k').value.trim();
+            const v = r.querySelector('.kv-v').value;
+            if (on && k) out.push([k, v]);
+        });
+        return out;
+    }
+
+    function kvWrite(container, list) {
+        container.innerHTML = '';
+        (list || []).forEach(([k, v]) => container.appendChild(kvRow(k, v, true)));
+        if (!list || !list.length) container.appendChild(kvRow());
+    }
+
+    document.querySelectorAll('[data-kvadd]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-kvadd');
+            document.getElementById(id).appendChild(kvRow());
+        });
+    });
+    httpFormAddBtn.addEventListener('click', () => httpFormEditor.appendChild(kvRow()));
+
+    // 初始空行
+    kvWrite(httpParamsEl, []);
+    kvWrite(httpHeadersEl, [['Content-Type', 'application/json']]);
+    kvWrite(httpFormEditor, []);
+
+    // ---- Body 类型切换 ----
+    document.querySelectorAll('input[name="bodyType"]').forEach(r => {
+        r.addEventListener('change', () => {
+            const v = document.querySelector('input[name="bodyType"]:checked').value;
+            httpBodyEl.hidden = (v === 'none' || v === 'form');
+            httpFormEditor.hidden = (v !== 'form');
+            httpFormAddBtn.hidden = (v !== 'form');
+        });
+    });
+
+    // ---- Auth 类型切换 ----
+    document.getElementById('httpAuthType').addEventListener('change', (e) => {
+        const v = e.target.value;
+        document.getElementById('httpAuthBearer').hidden = (v !== 'bearer');
+        document.getElementById('httpAuthBasic').hidden = (v !== 'basic');
+    });
+
+    // ---- URL <-> Params 双向同步（发送前会从 UI 收集） ----
+    httpUrlEl.addEventListener('blur', () => {
+        const raw = httpUrlEl.value.trim();
+        if (!raw) return;
+        try {
+            const u = new URL(raw);
+            const list = [];
+            u.searchParams.forEach((v, k) => list.push([k, v]));
+            if (list.length) kvWrite(httpParamsEl, list);
+        } catch {}
+    });
+
+    // ---- 构建最终 URL + Options ----
+    function buildRequest() {
+        let url = httpUrlEl.value.trim();
+        if (!url) throw new Error('请先输入请求 URL');
+        if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+
+        // 合并 Params 到 URL
+        const params = kvRead(httpParamsEl);
+        if (params.length) {
+            const u = new URL(url);
+            // 清掉 URL 里同名参数，由 UI 为准
+            params.forEach(([k]) => u.searchParams.delete(k));
+            params.forEach(([k, v]) => u.searchParams.append(k, v));
+            url = u.toString();
+        }
+
+        const headers = new Headers();
+        kvRead(httpHeadersEl).forEach(([k, v]) => headers.set(k, v));
+
+        // Auth
+        const at = document.getElementById('httpAuthType').value;
+        if (at === 'bearer') {
+            const t = document.getElementById('httpAuthToken').value.trim();
+            if (t) headers.set('Authorization', 'Bearer ' + t);
+        } else if (at === 'basic') {
+            const u = document.getElementById('httpAuthUser').value;
+            const p = document.getElementById('httpAuthPass').value;
+            headers.set('Authorization', 'Basic ' + btoa(u + ':' + p));
+        }
+
+        const method = httpMethodEl.value;
+        const opts = {
+            method,
+            headers,
+            cache: document.getElementById('httpNoCache').checked ? 'no-store' : 'default',
+            credentials: document.getElementById('httpCreds').checked ? 'include' : 'same-origin',
+        };
+
+        // Body
+        if (!['GET', 'HEAD'].includes(method)) {
+            const bt = document.querySelector('input[name="bodyType"]:checked').value;
+            if (bt === 'json') {
+                opts.body = httpBodyEl.value;
+                if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+            } else if (bt === 'raw') {
+                opts.body = httpBodyEl.value;
+            } else if (bt === 'form') {
+                const body = new URLSearchParams();
+                kvRead(httpFormEditor).forEach(([k, v]) => body.append(k, v));
+                opts.body = body.toString();
+                if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/x-www-form-urlencoded');
+            }
+        }
+
+        return { url, opts, method };
+    }
+
+    // ---- 发送请求 ----
+    async function sendRequest() {
+        let req;
+        try { req = buildRequest(); }
+        catch (e) { showToast(e.message, 'error'); return; }
+
+        httpRespStatus.textContent = '请求中...';
+        httpRespStatus.className = 'resp-status resp-warn';
+        httpRespTime.textContent = '-';
+        httpRespSize.textContent = '-';
+        httpRespBody.textContent = '';
+        httpRespHeaders.innerHTML = '';
+        httpRespRaw.textContent = '';
+
+        const timeoutMs = parseInt(document.getElementById('httpTimeout').value, 10) || 30000;
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), timeoutMs);
+        req.opts.signal = ac.signal;
+
+        const t0 = performance.now();
+        try {
+            const resp = await fetch(req.url, req.opts);
+            clearTimeout(timer);
+            const text = await resp.text();
+            const ms = Math.round(performance.now() - t0);
+
+            lastRespText = text;
+            lastRespContentType = resp.headers.get('content-type') || '';
+
+            // 状态徽章
+            const cls = resp.status >= 500 ? 'resp-err'
+                : resp.status >= 400 ? 'resp-warn'
+                : resp.status >= 200 ? 'resp-ok' : 'resp-idle';
+            httpRespStatus.className = 'resp-status ' + cls;
+            httpRespStatus.textContent = `${resp.status} ${resp.statusText || ''}`.trim();
+            httpRespTime.textContent = `耗时 ${ms} ms`;
+            httpRespSize.textContent = `大小 ${formatBytes(text.length)}`;
+
+            // Headers
+            const hs = [];
+            resp.headers.forEach((v, k) => hs.push([k, v]));
+            httpRespHeaders.innerHTML = hs.map(([k, v]) =>
+                `<div><span class="kv-key">${escapeHTML(k)}</span><span class="kv-val mono">${escapeHTML(v)}</span></div>`
+            ).join('') || '<div style="color:var(--text-muted)">无</div>';
+
+            // Body
+            renderRespBody();
+            httpRespRaw.textContent = text;
+
+            // 保存到历史
+            pushHistory(req.method, req.url, resp.status, ms);
+        } catch (err) {
+            clearTimeout(timer);
+            httpRespStatus.className = 'resp-status resp-err';
+            httpRespStatus.textContent = err.name === 'AbortError' ? '超时' : '请求失败';
+            httpRespBody.textContent = err.message + '\n\n可能原因：\n  · 目标服务器未返回 CORS 响应头（Access-Control-Allow-Origin）\n  · 网络不通 / DNS 解析失败 / 证书错误\n  · 被浏览器或插件拦截';
+            httpRespRaw.textContent = String(err);
+        }
+    }
+
+    function renderRespBody() {
+        const view = document.querySelector('input[name="respView"]:checked').value;
+        if (!lastRespText) { httpRespBody.textContent = ''; return; }
+        if (view === 'pretty' && /json/i.test(lastRespContentType)) {
+            try {
+                const obj = JSON.parse(lastRespText);
+                httpRespBody.innerHTML = highlightJSON(JSON.stringify(obj, null, 2));
+                return;
+            } catch {}
+        }
+        httpRespBody.textContent = lastRespText;
+    }
+
+    document.querySelectorAll('input[name="respView"]').forEach(r => {
+        r.addEventListener('change', renderRespBody);
+    });
+
+    document.getElementById('httpRespCopy').addEventListener('click', () => {
+        copyTextSimple(lastRespText, '响应体');
+    });
+
+    function formatBytes(n) {
+        if (n < 1024) return n + ' B';
+        if (n < 1024 * 1024) return (n / 1024).toFixed(2) + ' KB';
+        return (n / 1024 / 1024).toFixed(2) + ' MB';
+    }
+
+    httpSendBtn.addEventListener('click', sendRequest);
+    httpUrlEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); sendRequest(); }
+    });
+
+    // ---- 历史记录 ----
+    const HIST_KEY = 'http-history-v1';
+    function loadHistory() {
+        try { return JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch { return []; }
+    }
+    function saveHistory(list) { localStorage.setItem(HIST_KEY, JSON.stringify(list.slice(0, 30))); }
+
+    function pushHistory(method, url, status, ms) {
+        const list = loadHistory();
+        const item = {
+            method, url, status, ms,
+            ts: Date.now(),
+            params: kvRead(httpParamsEl),
+            headers: kvRead(httpHeadersEl),
+            body: httpBodyEl.value,
+            bodyType: document.querySelector('input[name="bodyType"]:checked').value,
+        };
+        // 去重：同 method+url 最新一条替换旧的
+        const filtered = list.filter(x => !(x.method === method && x.url === url));
+        filtered.unshift(item);
+        saveHistory(filtered);
+        renderHistory();
+    }
+
+    function renderHistory() {
+        const list = loadHistory();
+        if (!list.length) {
+            httpHistoryEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:8px 0">暂无历史</div>';
+            return;
+        }
+        httpHistoryEl.innerHTML = list.map((h, i) =>
+            `<div class="history-item" data-hidx="${i}">
+                <span class="m">${h.method}</span>
+                <span class="u" title="${escapeHTML(h.url)}">${escapeHTML(h.url)}</span>
+                <span class="s">${h.status} · ${h.ms}ms</span>
+                <button class="del" data-hdel="${i}" title="删除">×</button>
+            </div>`
+        ).join('');
+    }
+
+    httpHistoryEl.addEventListener('click', (e) => {
+        const delBtn = e.target.closest('[data-hdel]');
+        if (delBtn) {
+            e.stopPropagation();
+            const i = parseInt(delBtn.getAttribute('data-hdel'), 10);
+            const list = loadHistory();
+            list.splice(i, 1);
+            saveHistory(list);
+            renderHistory();
+            return;
+        }
+        const row = e.target.closest('.history-item');
+        if (!row) return;
+        const idx = parseInt(row.getAttribute('data-hidx'), 10);
+        const h = loadHistory()[idx];
+        if (!h) return;
+        httpMethodEl.value = h.method;
+        httpUrlEl.value = h.url;
+        kvWrite(httpParamsEl, h.params || []);
+        kvWrite(httpHeadersEl, h.headers || []);
+        httpBodyEl.value = h.body || '';
+        const bt = h.bodyType || 'none';
+        const r = document.querySelector(`input[name="bodyType"][value="${bt}"]`);
+        if (r) { r.checked = true; r.dispatchEvent(new Event('change')); }
+        showToast('已载入历史', 'success');
+    });
+
+    document.getElementById('httpHistoryClear').addEventListener('click', () => {
+        if (!confirm('确定清空全部历史？')) return;
+        localStorage.removeItem(HIST_KEY);
+        renderHistory();
+    });
+
+    httpSaveBtn.addEventListener('click', () => {
+        try {
+            const req = buildRequest();
+            pushHistory(req.method, req.url, 0, 0);
+            showToast('已保存', 'success');
+        } catch (e) { showToast(e.message, 'error'); }
+    });
+
+    renderHistory();
 })();

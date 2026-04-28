@@ -16,10 +16,10 @@
             </div>
             <nav class="nav" id="mainNav">
                 <a href="#" class="nav-item active" data-tab="json">JSON 工具</a>
+                <a href="#" class="nav-item" data-tab="http">HTTP 请求</a>
                 <a href="#" class="nav-item" data-tab="timestamp">时间戳转换</a>
                 <a href="#" class="nav-item" data-tab="base64">Base64</a>
                 <a href="#" class="nav-item" data-tab="url">URL 编解码</a>
-                <a href="#" class="nav-item" data-tab="md5">MD5 加密</a>
                 <a href="#" class="nav-item" data-tab="hash">哈希计算</a>
                 <a href="#" class="nav-item" data-tab="uuid">UUID 生成</a>
                 <a href="#" class="nav-item" data-tab="regex">正则测试</a>
@@ -100,6 +100,133 @@
                         </div>
                     </div>
                 </section>
+            </div>
+        </section>
+
+        <!-- ============ HTTP 请求（Postman 风格） ============ -->
+        <section class="tab-panel" data-panel="http">
+            <div class="tool-card http-card">
+                <h2 class="tool-title">HTTP 请求调试</h2>
+
+                <!-- URL 行 -->
+                <div class="http-url-bar">
+                    <select id="httpMethod" class="http-method">
+                        <option value="GET">GET</option>
+                        <option value="POST">POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="DELETE">DELETE</option>
+                        <option value="PATCH">PATCH</option>
+                        <option value="HEAD">HEAD</option>
+                        <option value="OPTIONS">OPTIONS</option>
+                    </select>
+                    <input type="text" id="httpUrl" class="http-url" placeholder="https://api.example.com/users?id=1" />
+                    <button class="btn btn-primary" id="httpSend">发送</button>
+                    <button class="btn" id="httpSave" title="保存到历史">保存</button>
+                </div>
+
+                <!-- 请求标签页 -->
+                <div class="http-tabs" id="httpReqTabs">
+                    <button class="http-tab active" data-httpsub="params">Params</button>
+                    <button class="http-tab" data-httpsub="headers">Headers</button>
+                    <button class="http-tab" data-httpsub="body">Body</button>
+                    <button class="http-tab" data-httpsub="auth">Auth</button>
+                    <button class="http-tab" data-httpsub="opts">选项</button>
+                </div>
+
+                <!-- Params -->
+                <div class="http-subpanel active" data-httpsub="params">
+                    <div class="kv-editor" id="httpParams"></div>
+                    <button class="mini-btn" data-kvadd="httpParams">+ 添加参数</button>
+                </div>
+
+                <!-- Headers -->
+                <div class="http-subpanel" data-httpsub="headers">
+                    <div class="kv-editor" id="httpHeaders"></div>
+                    <button class="mini-btn" data-kvadd="httpHeaders">+ 添加请求头</button>
+                </div>
+
+                <!-- Body -->
+                <div class="http-subpanel" data-httpsub="body">
+                    <div class="body-type-row">
+                        <label class="chk"><input type="radio" name="bodyType" value="none" checked /> none</label>
+                        <label class="chk"><input type="radio" name="bodyType" value="json" /> JSON</label>
+                        <label class="chk"><input type="radio" name="bodyType" value="form" /> x-www-form-urlencoded</label>
+                        <label class="chk"><input type="radio" name="bodyType" value="raw" /> raw / text</label>
+                    </div>
+                    <textarea id="httpBody" class="plain-area" style="min-height:220px" placeholder='例如：{"name": "foo", "age": 18}'></textarea>
+                    <div id="httpFormEditor" class="kv-editor" hidden></div>
+                    <button class="mini-btn" id="httpFormAdd" hidden>+ 添加字段</button>
+                </div>
+
+                <!-- Auth -->
+                <div class="http-subpanel" data-httpsub="auth">
+                    <div class="row">
+                        <label class="field-inline">
+                            类型
+                            <select id="httpAuthType">
+                                <option value="none">无</option>
+                                <option value="bearer">Bearer Token</option>
+                                <option value="basic">Basic Auth</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div id="httpAuthBearer" class="row" hidden>
+                        <input type="text" id="httpAuthToken" placeholder="在此粘贴 Token（会自动加到 Authorization: Bearer 前缀）" />
+                    </div>
+                    <div id="httpAuthBasic" class="row" hidden>
+                        <input type="text" id="httpAuthUser" placeholder="用户名" />
+                        <input type="text" id="httpAuthPass" placeholder="密码" />
+                    </div>
+                </div>
+
+                <!-- 选项 -->
+                <div class="http-subpanel" data-httpsub="opts">
+                    <label class="chk"><input type="checkbox" id="httpCreds" /> 携带 Cookie (credentials: include)</label>
+                    <label class="chk"><input type="checkbox" id="httpNoCache" checked /> 禁用缓存 (cache: no-store)</label>
+                    <label class="field-inline">
+                        超时 (ms)
+                        <input type="number" id="httpTimeout" value="30000" min="1000" max="300000" style="width:140px" />
+                    </label>
+                    <p class="hint-note">
+                        提示：浏览器发请求会受 <b>CORS 同源策略</b>限制。若目标接口未返回允许跨域的响应头，浏览器会拦截响应。
+                        对于调试此类接口，建议：① 在目标接口服务端允许 CORS；② 使用 Postman / curl 桌面工具；③ 走本地代理。
+                    </p>
+                </div>
+
+                <!-- 响应区 -->
+                <div class="http-resp">
+                    <div class="http-resp-head">
+                        <span id="httpRespStatus" class="resp-status resp-idle">尚未发送</span>
+                        <span id="httpRespTime" class="resp-meta">-</span>
+                        <span id="httpRespSize" class="resp-meta">-</span>
+                    </div>
+                    <div class="http-tabs sub">
+                        <button class="http-tab active" data-httpresp="body">响应体</button>
+                        <button class="http-tab" data-httpresp="headers">响应头</button>
+                        <button class="http-tab" data-httpresp="raw">原始</button>
+                    </div>
+                    <div class="http-subpanel active" data-httpresp="body">
+                        <div class="row" style="margin-bottom:8px">
+                            <label class="chk"><input type="radio" name="respView" value="pretty" checked /> Pretty（JSON 格式化）</label>
+                            <label class="chk"><input type="radio" name="respView" value="text" /> 原文</label>
+                            <button class="mini-btn" style="margin-left:auto" id="httpRespCopy">复制</button>
+                        </div>
+                        <div id="httpRespBody" class="output-text" style="min-height:260px;max-height:560px"></div>
+                    </div>
+                    <div class="http-subpanel" data-httpresp="headers">
+                        <div id="httpRespHeaders" class="kv" style="min-height:80px"></div>
+                    </div>
+                    <div class="http-subpanel" data-httpresp="raw">
+                        <div id="httpRespRaw" class="output-text" style="min-height:260px;max-height:560px;white-space:pre-wrap"></div>
+                    </div>
+                </div>
+
+                <!-- 历史 -->
+                <div class="sub-section">
+                    <h3>历史记录</h3>
+                    <div id="httpHistory" class="http-history"></div>
+                    <button class="mini-btn" id="httpHistoryClear">清空历史</button>
+                </div>
             </div>
         </section>
 
