@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>在线开发者工具箱 | JSON / Base64 / 时间戳 / 哈希 / 正则</title>
     <meta name="description" content="免费在线开发者工具箱：JSON 格式化、Base64、URL 编解码、时间戳转换、哈希、UUID、正则测试等。" />
-    <link rel="stylesheet" href="style.css?v=13" />
+    <link rel="stylesheet" href="style.css?v=18" />
 </head>
 <body>
     <header class="site-header">
@@ -111,7 +111,6 @@
                 <div class="options">
                     <label class="chk"><input type="checkbox" id="diffIgnoreOrder" /> 忽略数组顺序</label>
                     <label class="chk"><input type="checkbox" id="diffIgnoreCase" /> 字符串忽略大小写</label>
-                    <label class="chk"><input type="checkbox" id="diffOnlyShowDiff" /> 只显示差异</label>
                     <button class="btn btn-primary" id="diffRun">对比</button>
                     <button class="btn" id="diffSwap">交换左右</button>
                     <button class="btn btn-danger" id="diffClear">清空</button>
@@ -124,14 +123,20 @@
                             <span class="pane-title">左侧 JSON（原始）</span>
                             <button class="mini-btn" data-copy="#diffLeft">复制</button>
                         </div>
-                        <textarea id="diffLeft" class="plain-area" style="min-height:260px" placeholder='例如：{"name":"张三","age":18}'></textarea>
+                        <div class="diff-editor" data-side="left">
+                            <textarea id="diffLeft" class="plain-area diff-textarea" spellcheck="false" placeholder='例如：{"name":"张三","age":18}'></textarea>
+                            <div id="diffLeftPreview" class="diff-preview" hidden></div>
+                        </div>
                     </div>
                     <div class="editor-pane">
                         <div class="pane-header">
                             <span class="pane-title">右侧 JSON（修改后）</span>
                             <button class="mini-btn" data-copy="#diffRight">复制</button>
                         </div>
-                        <textarea id="diffRight" class="plain-area" style="min-height:260px" placeholder='例如：{"name":"张三","age":20,"email":"a@b.c"}'></textarea>
+                        <div class="diff-editor" data-side="right">
+                            <textarea id="diffRight" class="plain-area diff-textarea" spellcheck="false" placeholder='例如：{"name":"张三","age":20,"email":"a@b.c"}'></textarea>
+                            <div id="diffRightPreview" class="diff-preview" hidden></div>
+                        </div>
                     </div>
                 </div>
 
@@ -140,15 +145,6 @@
                     <span class="diff-badge b-del">- 删除 <b id="diffDelCnt">0</b></span>
                     <span class="diff-badge b-mod">~ 修改 <b id="diffModCnt">0</b></span>
                     <span class="diff-badge b-same">= 相同 <b id="diffSameCnt">0</b></span>
-                </div>
-
-                <div class="diff-result-wrap">
-                    <div class="diff-legend">
-                        <span><span class="dot add"></span>新增</span>
-                        <span><span class="dot del"></span>删除</span>
-                        <span><span class="dot mod"></span>修改</span>
-                    </div>
-                    <div id="diffResult" class="output-text diff-view" style="min-height:320px"></div>
                 </div>
             </div>
         </section>
@@ -503,6 +499,6 @@
     <div id="toast" class="toast" hidden></div>
 
     <script src="https://cdn.jsdelivr.net/npm/spark-md5@3.0.2/spark-md5.min.js"></script>
-    <script src="script.js?v=13"></script>
+    <script src="script.js?v=18"></script>
 </body>
 </html>

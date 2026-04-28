@@ -1487,7 +1487,8 @@
     // ================================================================
     const diffLeftEl = document.getElementById('diffLeft');
     const diffRightEl = document.getElementById('diffRight');
-    const diffResult = document.getElementById('diffResult');
+    const diffLeftPreview = document.getElementById('diffLeftPreview');
+    const diffRightPreview = document.getElementById('diffRightPreview');
     const diffStatus = document.getElementById('diffStatus');
     const diffSummary = document.getElementById('diffSummary');
 
@@ -1512,50 +1513,50 @@
     function isObj(v) { return v && typeof v === 'object' && !Array.isArray(v); }
     function isArr(v) { return Array.isArray(v); }
 
-    // 对比两个 JSON，返回 diff 结构的行数组
-    // 行类型：same | add | del | mod (mod 会产生两行：mod-l 和 mod-r)
-    function diffJSON(a, b) {
-        const lines = [];
+    function escJsonStr(s) {
+        return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+    }
+    function valRepr(v) {
+        if (v === undefined) return '';
+        if (typeof v === 'string') return `"${escJsonStr(v)}"`;
+        if (v === null) return 'null';
+        return String(v);
+    }
+    function keyPart(key, isArrayIdx) {
+        if (key === null || isArrayIdx) return '';
+        return `"${key}": `;
+    }
+
+    // 核心：生成 {leftLines, rightLines, stats}
+    // 每行：{ type: 'same'|'add'|'del'|'mod', text, indent }
+    function diffBothSides(a, b) {
+        const leftLines = [];
+        const rightLines = [];
         const stats = { add: 0, del: 0, mod: 0, same: 0 };
 
-        function valRepr(v) {
-            if (v === undefined) return '';
-            if (typeof v === 'string') return `"${escapeJsonStr(v)}"`;
-            if (v === null) return 'null';
-            return String(v);
+        function pushBoth(type, indent, text) {
+            leftLines.push({ type, indent, text });
+            rightLines.push({ type, indent, text });
+            if (type === 'same') stats.same++;
         }
-        function escapeJsonStr(s) {
-            return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
-        }
+        function pushLeft(type, indent, text) { leftLines.push({ type, indent, text }); }
+        function pushRight(type, indent, text) { rightLines.push({ type, indent, text }); }
 
-        function keyPart(key, isArrayIdx) {
-            if (key === null) return '';
-            if (isArrayIdx) return '';
-            return `"${key}": `;
-        }
-
-        function pushLine(type, indent, text) {
-            lines.push({ type, indent, text });
-            if (type === 'add') stats.add++;
-            else if (type === 'del') stats.del++;
-            else if (type === 'mod-l' || type === 'mod-r') { /* mod 按 1 次算 */ }
-            else if (type === 'same') stats.same++;
-        }
-
-        function renderFull(v, indent, key, isArrayIdx, lineType, trailingComma) {
+        // 把一个完整子树 flat 成行：只给一侧用（标记为 del / add / mod）
+        function expandFull(v, indent, key, isArrayIdx, lineType, trailingComma, pushFn) {
             const kp = keyPart(key, isArrayIdx);
             const comma = trailingComma ? ',' : '';
             if (isObj(v)) {
                 const keys = Object.keys(v);
-                pushLine(lineType, indent, `${kp}{`);
-                keys.forEach((k, i) => renderFull(v[k], indent + 1, k, false, lineType, i < keys.length - 1));
-                pushLine(lineType, indent, `}${comma}`);
+                pushFn(lineType, indent, `${kp}{`);
+                keys.forEach((k, i) => expandFull(v[k], indent + 1, k, false, lineType, i < keys.length - 1, pushFn));
+                pushFn(lineType, indent, `}${comma}`);
             } else if (isArr(v)) {
-                pushLine(lineType, indent, `${kp}[`);
-                v.forEach((x, i) => renderFull(x, indent + 1, i, true, lineType, i < v.length - 1));
-                pushLine(lineType, indent, `]${comma}`);
+                pushFn(lineType, indent, `${kp}[`);
+                v.forEach((x, i) => expandFull(x, indent + 1, i, true, lineType, i < v.length - 1, pushFn));
+                pushFn(lineType, indent, `]${comma}`);
             } else {
-                pushLine(lineType, indent, `${kp}${valRepr(v)}${comma}`);
+                pushFn(lineType, indent, `${kp}${valRepr(v)}${comma}`);
             }
         }
 
@@ -1563,91 +1564,152 @@
             const kp = keyPart(key, isArrayIdx);
             const comma = trailingComma ? ',' : '';
 
-            // 同类型 容器
+            // 都是对象
             if (isObj(a) && isObj(b)) {
-                pushLine('same', indent, `${kp}{`);
-                const keys = Array.from(new Set([...Object.keys(a), ...Object.keys(b)]));
-                // 保持合理顺序：按左侧 → 新增的右侧
+                pushBoth('same', indent, `${kp}{`);
                 const leftKeys = Object.keys(a);
                 const rightOnly = Object.keys(b).filter(k => !(k in a));
-                const orderedKeys = [...leftKeys, ...rightOnly];
-                orderedKeys.forEach((k, idx) => {
-                    const last = idx === orderedKeys.length - 1;
+                const ordered = [...leftKeys, ...rightOnly];
+                ordered.forEach((k, idx) => {
+                    const last = idx === ordered.length - 1;
                     if (k in a && k in b) {
                         walk(a[k], b[k], indent + 1, k, false, !last);
                     } else if (k in b) {
-                        renderFull(b[k], indent + 1, k, false, 'add', !last);
+                        // 只在右侧有：右侧展示为 add，左侧跳过这些行（保持视觉行数不对齐也没关系）
+                        expandFull(b[k], indent + 1, k, false, 'add', !last, pushRight);
+                        stats.add++;
                     } else {
-                        renderFull(a[k], indent + 1, k, false, 'del', !last);
+                        expandFull(a[k], indent + 1, k, false, 'del', !last, pushLeft);
+                        stats.del++;
                     }
                 });
-                pushLine('same', indent, `}${comma}`);
+                pushBoth('same', indent, `}${comma}`);
                 return;
             }
 
+            // 都是数组
             if (isArr(a) && isArr(b)) {
-                pushLine('same', indent, `${kp}[`);
-                const maxLen = Math.max(a.length, b.length);
-                for (let i = 0; i < maxLen; i++) {
-                    const last = i === maxLen - 1;
+                pushBoth('same', indent, `${kp}[`);
+                const ml = Math.max(a.length, b.length);
+                for (let i = 0; i < ml; i++) {
+                    const last = i === ml - 1;
                     if (i < a.length && i < b.length) {
                         walk(a[i], b[i], indent + 1, i, true, !last);
                     } else if (i < b.length) {
-                        renderFull(b[i], indent + 1, i, true, 'add', !last);
+                        expandFull(b[i], indent + 1, i, true, 'add', !last, pushRight);
+                        stats.add++;
                     } else {
-                        renderFull(a[i], indent + 1, i, true, 'del', !last);
+                        expandFull(a[i], indent + 1, i, true, 'del', !last, pushLeft);
+                        stats.del++;
                     }
                 }
-                pushLine('same', indent, `]${comma}`);
+                pushBoth('same', indent, `]${comma}`);
                 return;
             }
 
             // 基础值或类型不同
             const sameVal = (typeof a === typeof b)
-                && (a === b || (a !== a && b !== b) /* NaN */);
+                && (a === b || (a !== a && b !== b));
             if (sameVal && !isObj(a) && !isArr(a)) {
-                pushLine('same', indent, `${kp}${valRepr(a)}${comma}`);
+                pushBoth('same', indent, `${kp}${valRepr(a)}${comma}`);
             } else {
-                // 修改：左红右绿
+                // 修改：左侧 mod，右侧 mod（各自展开）
                 if (isObj(a) || isArr(a)) {
-                    renderFull(a, indent, key, isArrayIdx, 'mod-l', false);
+                    expandFull(a, indent, key, isArrayIdx, 'mod', trailingComma, pushLeft);
                 } else {
-                    pushLine('mod-l', indent, `${kp}${valRepr(a)}`);
+                    pushLeft('mod', indent, `${kp}${valRepr(a)}${comma}`);
                 }
                 if (isObj(b) || isArr(b)) {
-                    renderFull(b, indent, key, isArrayIdx, 'mod-r', trailingComma);
+                    expandFull(b, indent, key, isArrayIdx, 'mod', trailingComma, pushRight);
                 } else {
-                    pushLine('mod-r', indent, `${kp}${valRepr(b)}${comma}`);
+                    pushRight('mod', indent, `${kp}${valRepr(b)}${comma}`);
                 }
                 stats.mod++;
             }
         }
 
         walk(a, b, 0, null, false, false);
-        return { lines, stats };
+        return { leftLines, rightLines, stats };
     }
 
-    function renderDiff(lines, onlyDiff) {
-        const indentChar = '  ';
-        const html = lines
-            .filter(l => !onlyDiff || l.type !== 'same')
-            .map(l => {
-                let sign = ' ';
-                if (l.type === 'add') sign = '+';
-                else if (l.type === 'del') sign = '-';
-                else if (l.type === 'mod-l') sign = '-';
-                else if (l.type === 'mod-r') sign = '+';
-                const text = indentChar.repeat(l.indent) + l.text;
-                return `<div class="dline ${l.type}"><span class="sign">${sign}</span><span>${highlightJSON(text)}</span></div>`;
-            }).join('');
-        diffResult.innerHTML = html || '<div style="padding:16px;color:var(--text-muted)">无差异或无内容</div>';
+    // 语法高亮：用单次扫描的 tokenizer 避免多次 replace 互相污染
+    function diffHighlight(s) {
+        const re = /"(?:\\.|[^"\\])*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\b(?:true|false|null)\b|[{}\[\]:,]/g;
+        let out = '';
+        let lastIndex = 0;
+        let m;
+        while ((m = re.exec(s)) !== null) {
+            const match = m[0];
+            const offset = m.index;
+            if (offset > lastIndex) out += escapeHTML(s.slice(lastIndex, offset));
+            lastIndex = offset + match.length;
+
+            if (match[0] === '"') {
+                const rest = s.slice(lastIndex);
+                if (/^\s*:/.test(rest)) {
+                    out += `<span class="tk-key">${escapeHTML(match)}</span>`;
+                } else {
+                    out += `<span class="tk-str">${escapeHTML(match)}</span>`;
+                }
+            } else if (/^-?\d/.test(match)) {
+                out += `<span class="tk-num">${match}</span>`;
+            } else if (match === 'true' || match === 'false') {
+                out += `<span class="tk-bool">${match}</span>`;
+            } else if (match === 'null') {
+                out += `<span class="tk-null">null</span>`;
+            } else {
+                out += `<span class="tk-punc">${match}</span>`;
+            }
+            // 防止零宽匹配死循环
+            if (match.length === 0) re.lastIndex++;
+        }
+        if (lastIndex < s.length) out += escapeHTML(s.slice(lastIndex));
+        return out;
     }
+
+    function linesToHTML(lines) {
+        const indentChar = '  ';
+        return lines.map(l => {
+            const text = indentChar.repeat(l.indent) + l.text;
+            return `<div class="dline ${l.type}">${diffHighlight(text) || '&nbsp;'}</div>`;
+        }).join('');
+    }
+
+    function linesToText(lines) {
+        const indentChar = '  ';
+        return lines.map(l => indentChar.repeat(l.indent) + l.text).join('\n');
+    }
+
+    function showPreview(side) {
+        const editor = document.querySelector(`.diff-editor[data-side="${side}"]`);
+        if (!editor) return;
+        const ta = editor.querySelector('textarea');
+        const pv = editor.querySelector('.diff-preview');
+        ta.style.display = 'none';
+        pv.hidden = false;
+    }
+    function hidePreview(side) {
+        const editor = document.querySelector(`.diff-editor[data-side="${side}"]`);
+        if (!editor) return;
+        const ta = editor.querySelector('textarea');
+        const pv = editor.querySelector('.diff-preview');
+        ta.style.display = '';
+        pv.hidden = true;
+    }
+
+    // 点击预览层可回到编辑模式（允许再次修改）
+    diffLeftPreview.addEventListener('click', () => { hidePreview('left'); diffLeftEl.focus(); });
+    diffRightPreview.addEventListener('click', () => { hidePreview('right'); diffRightEl.focus(); });
+
+    // 用户编辑 textarea 时，隐藏预览层
+    diffLeftEl.addEventListener('input', () => hidePreview('left'));
+    diffRightEl.addEventListener('input', () => hidePreview('right'));
 
     function runDiff() {
         const lraw = diffLeftEl.value.trim();
         const rraw = diffRightEl.value.trim();
         if (!lraw && !rraw) {
-            diffResult.innerHTML = '';
+            hidePreview('left'); hidePreview('right');
             diffSummary.hidden = true;
             diffStatus.textContent = '请在左右两侧粘贴 JSON';
             diffStatus.style.color = '';
@@ -1669,13 +1731,22 @@
 
         const ignoreOrder = document.getElementById('diffIgnoreOrder').checked;
         const ignoreCase = document.getElementById('diffIgnoreCase').checked;
-        const onlyDiff = document.getElementById('diffOnlyShowDiff').checked;
 
         const a = normalize(left, ignoreOrder, ignoreCase);
         const b = normalize(right, ignoreOrder, ignoreCase);
 
-        const { lines, stats } = diffJSON(a, b);
-        renderDiff(lines, onlyDiff);
+        const { leftLines, rightLines, stats } = diffBothSides(a, b);
+
+        // 回填 textarea 为格式化后的文本，并展示高亮预览层
+        diffLeftEl.value = linesToText(leftLines);
+        diffRightEl.value = linesToText(rightLines);
+
+        diffLeftPreview.className = 'diff-preview side-left';
+        diffRightPreview.className = 'diff-preview side-right';
+        diffLeftPreview.innerHTML = linesToHTML(leftLines) || '<div class="dline">&nbsp;</div>';
+        diffRightPreview.innerHTML = linesToHTML(rightLines) || '<div class="dline">&nbsp;</div>';
+        showPreview('left');
+        showPreview('right');
 
         document.getElementById('diffAddCnt').textContent = stats.add;
         document.getElementById('diffDelCnt').textContent = stats.del;
@@ -1695,29 +1766,21 @@
 
     document.getElementById('diffRun').addEventListener('click', runDiff);
     document.getElementById('diffSwap').addEventListener('click', () => {
+        hidePreview('left'); hidePreview('right');
         const tmp = diffLeftEl.value;
         diffLeftEl.value = diffRightEl.value;
         diffRightEl.value = tmp;
         runDiff();
     });
     document.getElementById('diffClear').addEventListener('click', () => {
+        hidePreview('left'); hidePreview('right');
         diffLeftEl.value = '';
         diffRightEl.value = '';
-        diffResult.innerHTML = '';
         diffSummary.hidden = true;
         diffStatus.textContent = '就绪';
         diffStatus.style.color = '';
     });
 
-    // 实时对比（节流）
-    let diffTimer;
-    function scheduleDiff() {
-        clearTimeout(diffTimer);
-        diffTimer = setTimeout(runDiff, 300);
-    }
-    diffLeftEl.addEventListener('input', scheduleDiff);
-    diffRightEl.addEventListener('input', scheduleDiff);
     document.getElementById('diffIgnoreOrder').addEventListener('change', runDiff);
     document.getElementById('diffIgnoreCase').addEventListener('change', runDiff);
-    document.getElementById('diffOnlyShowDiff').addEventListener('change', runDiff);
 })();
