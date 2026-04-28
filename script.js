@@ -1481,4 +1481,243 @@
     });
 
     renderHistory();
+
+    // ================================================================
+    // ===================== JSON Diff =====================
+    // ================================================================
+    const diffLeftEl = document.getElementById('diffLeft');
+    const diffRightEl = document.getElementById('diffRight');
+    const diffResult = document.getElementById('diffResult');
+    const diffStatus = document.getElementById('diffStatus');
+    const diffSummary = document.getElementById('diffSummary');
+
+    function normalize(v, ignoreOrder, ignoreCase) {
+        if (Array.isArray(v)) {
+            const arr = v.map(x => normalize(x, ignoreOrder, ignoreCase));
+            if (ignoreOrder) arr.sort((a, b) => {
+                const sa = JSON.stringify(a), sb = JSON.stringify(b);
+                return sa < sb ? -1 : sa > sb ? 1 : 0;
+            });
+            return arr;
+        }
+        if (v && typeof v === 'object') {
+            const out = {};
+            Object.keys(v).sort().forEach(k => { out[k] = normalize(v[k], ignoreOrder, ignoreCase); });
+            return out;
+        }
+        if (typeof v === 'string' && ignoreCase) return v.toLowerCase();
+        return v;
+    }
+
+    function isObj(v) { return v && typeof v === 'object' && !Array.isArray(v); }
+    function isArr(v) { return Array.isArray(v); }
+
+    // 对比两个 JSON，返回 diff 结构的行数组
+    // 行类型：same | add | del | mod (mod 会产生两行：mod-l 和 mod-r)
+    function diffJSON(a, b) {
+        const lines = [];
+        const stats = { add: 0, del: 0, mod: 0, same: 0 };
+
+        function valRepr(v) {
+            if (v === undefined) return '';
+            if (typeof v === 'string') return `"${escapeJsonStr(v)}"`;
+            if (v === null) return 'null';
+            return String(v);
+        }
+        function escapeJsonStr(s) {
+            return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+        }
+
+        function keyPart(key, isArrayIdx) {
+            if (key === null) return '';
+            if (isArrayIdx) return '';
+            return `"${key}": `;
+        }
+
+        function pushLine(type, indent, text) {
+            lines.push({ type, indent, text });
+            if (type === 'add') stats.add++;
+            else if (type === 'del') stats.del++;
+            else if (type === 'mod-l' || type === 'mod-r') { /* mod 按 1 次算 */ }
+            else if (type === 'same') stats.same++;
+        }
+
+        function renderFull(v, indent, key, isArrayIdx, lineType, trailingComma) {
+            const kp = keyPart(key, isArrayIdx);
+            const comma = trailingComma ? ',' : '';
+            if (isObj(v)) {
+                const keys = Object.keys(v);
+                pushLine(lineType, indent, `${kp}{`);
+                keys.forEach((k, i) => renderFull(v[k], indent + 1, k, false, lineType, i < keys.length - 1));
+                pushLine(lineType, indent, `}${comma}`);
+            } else if (isArr(v)) {
+                pushLine(lineType, indent, `${kp}[`);
+                v.forEach((x, i) => renderFull(x, indent + 1, i, true, lineType, i < v.length - 1));
+                pushLine(lineType, indent, `]${comma}`);
+            } else {
+                pushLine(lineType, indent, `${kp}${valRepr(v)}${comma}`);
+            }
+        }
+
+        function walk(a, b, indent, key, isArrayIdx, trailingComma) {
+            const kp = keyPart(key, isArrayIdx);
+            const comma = trailingComma ? ',' : '';
+
+            // 同类型 容器
+            if (isObj(a) && isObj(b)) {
+                pushLine('same', indent, `${kp}{`);
+                const keys = Array.from(new Set([...Object.keys(a), ...Object.keys(b)]));
+                // 保持合理顺序：按左侧 → 新增的右侧
+                const leftKeys = Object.keys(a);
+                const rightOnly = Object.keys(b).filter(k => !(k in a));
+                const orderedKeys = [...leftKeys, ...rightOnly];
+                orderedKeys.forEach((k, idx) => {
+                    const last = idx === orderedKeys.length - 1;
+                    if (k in a && k in b) {
+                        walk(a[k], b[k], indent + 1, k, false, !last);
+                    } else if (k in b) {
+                        renderFull(b[k], indent + 1, k, false, 'add', !last);
+                    } else {
+                        renderFull(a[k], indent + 1, k, false, 'del', !last);
+                    }
+                });
+                pushLine('same', indent, `}${comma}`);
+                return;
+            }
+
+            if (isArr(a) && isArr(b)) {
+                pushLine('same', indent, `${kp}[`);
+                const maxLen = Math.max(a.length, b.length);
+                for (let i = 0; i < maxLen; i++) {
+                    const last = i === maxLen - 1;
+                    if (i < a.length && i < b.length) {
+                        walk(a[i], b[i], indent + 1, i, true, !last);
+                    } else if (i < b.length) {
+                        renderFull(b[i], indent + 1, i, true, 'add', !last);
+                    } else {
+                        renderFull(a[i], indent + 1, i, true, 'del', !last);
+                    }
+                }
+                pushLine('same', indent, `]${comma}`);
+                return;
+            }
+
+            // 基础值或类型不同
+            const sameVal = (typeof a === typeof b)
+                && (a === b || (a !== a && b !== b) /* NaN */);
+            if (sameVal && !isObj(a) && !isArr(a)) {
+                pushLine('same', indent, `${kp}${valRepr(a)}${comma}`);
+            } else {
+                // 修改：左红右绿
+                if (isObj(a) || isArr(a)) {
+                    renderFull(a, indent, key, isArrayIdx, 'mod-l', false);
+                } else {
+                    pushLine('mod-l', indent, `${kp}${valRepr(a)}`);
+                }
+                if (isObj(b) || isArr(b)) {
+                    renderFull(b, indent, key, isArrayIdx, 'mod-r', trailingComma);
+                } else {
+                    pushLine('mod-r', indent, `${kp}${valRepr(b)}${comma}`);
+                }
+                stats.mod++;
+            }
+        }
+
+        walk(a, b, 0, null, false, false);
+        return { lines, stats };
+    }
+
+    function renderDiff(lines, onlyDiff) {
+        const indentChar = '  ';
+        const html = lines
+            .filter(l => !onlyDiff || l.type !== 'same')
+            .map(l => {
+                let sign = ' ';
+                if (l.type === 'add') sign = '+';
+                else if (l.type === 'del') sign = '-';
+                else if (l.type === 'mod-l') sign = '-';
+                else if (l.type === 'mod-r') sign = '+';
+                const text = indentChar.repeat(l.indent) + l.text;
+                return `<div class="dline ${l.type}"><span class="sign">${sign}</span><span>${highlightJSON(text)}</span></div>`;
+            }).join('');
+        diffResult.innerHTML = html || '<div style="padding:16px;color:var(--text-muted)">无差异或无内容</div>';
+    }
+
+    function runDiff() {
+        const lraw = diffLeftEl.value.trim();
+        const rraw = diffRightEl.value.trim();
+        if (!lraw && !rraw) {
+            diffResult.innerHTML = '';
+            diffSummary.hidden = true;
+            diffStatus.textContent = '请在左右两侧粘贴 JSON';
+            diffStatus.style.color = '';
+            return;
+        }
+        let left, right;
+        try { left = lraw ? JSON.parse(lraw) : null; }
+        catch (e) {
+            diffStatus.textContent = '左侧 JSON 无效：' + e.message;
+            diffStatus.style.color = 'var(--danger)';
+            return;
+        }
+        try { right = rraw ? JSON.parse(rraw) : null; }
+        catch (e) {
+            diffStatus.textContent = '右侧 JSON 无效：' + e.message;
+            diffStatus.style.color = 'var(--danger)';
+            return;
+        }
+
+        const ignoreOrder = document.getElementById('diffIgnoreOrder').checked;
+        const ignoreCase = document.getElementById('diffIgnoreCase').checked;
+        const onlyDiff = document.getElementById('diffOnlyShowDiff').checked;
+
+        const a = normalize(left, ignoreOrder, ignoreCase);
+        const b = normalize(right, ignoreOrder, ignoreCase);
+
+        const { lines, stats } = diffJSON(a, b);
+        renderDiff(lines, onlyDiff);
+
+        document.getElementById('diffAddCnt').textContent = stats.add;
+        document.getElementById('diffDelCnt').textContent = stats.del;
+        document.getElementById('diffModCnt').textContent = stats.mod;
+        document.getElementById('diffSameCnt').textContent = stats.same;
+        diffSummary.hidden = false;
+
+        const totalDiff = stats.add + stats.del + stats.mod;
+        if (totalDiff === 0) {
+            diffStatus.textContent = '两份 JSON 完全一致 ✓';
+            diffStatus.style.color = 'var(--success)';
+        } else {
+            diffStatus.textContent = `发现 ${totalDiff} 处差异`;
+            diffStatus.style.color = 'var(--warning)';
+        }
+    }
+
+    document.getElementById('diffRun').addEventListener('click', runDiff);
+    document.getElementById('diffSwap').addEventListener('click', () => {
+        const tmp = diffLeftEl.value;
+        diffLeftEl.value = diffRightEl.value;
+        diffRightEl.value = tmp;
+        runDiff();
+    });
+    document.getElementById('diffClear').addEventListener('click', () => {
+        diffLeftEl.value = '';
+        diffRightEl.value = '';
+        diffResult.innerHTML = '';
+        diffSummary.hidden = true;
+        diffStatus.textContent = '就绪';
+        diffStatus.style.color = '';
+    });
+
+    // 实时对比（节流）
+    let diffTimer;
+    function scheduleDiff() {
+        clearTimeout(diffTimer);
+        diffTimer = setTimeout(runDiff, 300);
+    }
+    diffLeftEl.addEventListener('input', scheduleDiff);
+    diffRightEl.addEventListener('input', scheduleDiff);
+    document.getElementById('diffIgnoreOrder').addEventListener('change', runDiff);
+    document.getElementById('diffIgnoreCase').addEventListener('change', runDiff);
+    document.getElementById('diffOnlyShowDiff').addEventListener('change', runDiff);
 })();
