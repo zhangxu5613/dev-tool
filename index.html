@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>在线开发者工具箱 | JSON / Base64 / 时间戳 / 哈希 / 正则</title>
     <meta name="description" content="免费在线开发者工具箱：JSON 格式化、Base64、URL 编解码、时间戳转换、哈希、UUID、正则测试等。" />
-    <link rel="stylesheet" href="style.css?v=29" />
+    <link rel="stylesheet" href="style.css?v=36" />
 </head>
 <body>
     <header class="site-header">
@@ -17,6 +17,7 @@
             <nav class="nav" id="mainNav">
                 <a href="#" class="nav-item active" data-tab="json">JSON 工具</a>
                 <a href="#" class="nav-item" data-tab="jsondiff">JSON Diff</a>
+                <a href="#" class="nav-item" data-tab="strfmt">字符串格式化</a>
                 <a href="#" class="nav-item" data-tab="http">HTTP 请求</a>
                 <a href="#" class="nav-item" data-tab="timestamp">时间戳转换</a>
                 <a href="#" class="nav-item" data-tab="base64">Base64</a>
@@ -150,6 +151,44 @@
                     <span class="diff-badge b-mod">~ 修改 <b id="diffModCnt">0</b></span>
                     <span class="diff-badge b-same">= 相同 <b id="diffSameCnt">0</b></span>
                 </div>
+            </div>
+        </section>
+
+        <!-- ============ 字符串格式化 ============ -->
+        <section class="tab-panel" data-panel="strfmt">
+            <div class="tool-card">
+                <h2 class="tool-title">字符串格式化</h2>
+                <p class="tool-desc">将文本中的 <code>\n</code> <code>\t</code> <code>\r</code> 等转义字符转为真实换行/制表符，或逆向将换行转回转义字符。</p>
+
+                <div class="dual-wrap">
+                    <div class="dual-pane">
+                        <div class="pane-header">
+                            <span class="pane-title">原始文本（含 \n \t 等）</span>
+                            <button class="mini-btn" data-copy="#strfmtLeft">复制</button>
+                        </div>
+                        <textarea id="strfmtLeft" class="plain-area" style="min-height:560px" spellcheck="false" placeholder='粘贴包含 \n \t 等转义字符的文本'></textarea>
+                    </div>
+                    <div class="dual-actions">
+                        <button class="btn btn-primary" id="strfmtFormat">格式化 →</button>
+                        <button class="btn" id="strfmtReverse">← 逆向</button>
+                        <button class="btn btn-danger" id="strfmtClear">清空</button>
+                    </div>
+                    <div class="dual-pane">
+                        <div class="pane-header">
+                            <span class="pane-title">格式化结果</span>
+                            <button class="mini-btn" data-copy="#strfmtRight">复制</button>
+                        </div>
+                        <textarea id="strfmtRight" class="plain-area" style="min-height:560px" spellcheck="false" placeholder="格式化后的文本"></textarea>
+                    </div>
+                </div>
+
+                <div class="options" style="margin-top:10px">
+                    <label class="chk"><input type="checkbox" id="strfmtTab2Space" /> \t 转为 4 个空格</label>
+                    <label class="chk"><input type="checkbox" id="strfmtTrimLines" /> 去除每行首尾空白</label>
+                    <label class="chk"><input type="checkbox" id="strfmtRemoveEmpty" /> 去除连续空行</label>
+                    <label class="chk"><input type="checkbox" id="strfmtAuto" checked /> 输入时自动格式化</label>
+                </div>
+                <div class="status-line" id="strfmtStatus">就绪</div>
             </div>
         </section>
 
@@ -437,8 +476,18 @@
                 <h2 class="tool-title">UUID 生成</h2>
                 <div class="row">
                     <label class="field-inline">
+                        版本
+                        <select id="uuidVersion">
+                            <option value="4" selected>v4（随机）</option>
+                            <option value="1">v1（时间戳）</option>
+                            <option value="3">v3（MD5 命名空间）</option>
+                            <option value="5">v5（SHA-1 命名空间）</option>
+                            <option value="7">v7（时间有序+随机）</option>
+                        </select>
+                    </label>
+                    <label class="field-inline">
                         数量
-                        <input type="number" id="uuidCount" value="5" min="1" max="1000" style="width:110px" />
+                        <input type="number" id="uuidCount" value="5" min="1" max="1000" style="width:90px" />
                     </label>
                     <label class="chk"><input type="checkbox" id="uuidUpper" /> 大写</label>
                     <label class="chk"><input type="checkbox" id="uuidNoDash" /> 去掉连字符</label>
@@ -446,7 +495,38 @@
                     <button class="btn" data-action="uuid-copy">复制全部</button>
                     <button class="btn btn-danger" data-action="uuid-clear">清空</button>
                 </div>
-                <textarea id="uuidOutput" class="plain-area" style="min-height:340px;margin-top:14px" readonly placeholder="点击"生成"按钮"></textarea>
+
+                <!-- v3/v5 命名空间参数 -->
+                <div class="row uuid-ns-row" id="uuidNsRow" hidden>
+                    <label class="field-inline">
+                        命名空间
+                        <select id="uuidNamespace">
+                            <option value="6ba7b810-9dad-11d1-80b4-00c04fd430c8">DNS</option>
+                            <option value="6ba7b811-9dad-11d1-80b4-00c04fd430c8">URL</option>
+                            <option value="6ba7b812-9dad-11d1-80b4-00c04fd430c8">OID</option>
+                            <option value="6ba7b814-9dad-11d1-80b4-00c04fd430c8">X.500</option>
+                            <option value="custom">自定义 UUID</option>
+                        </select>
+                    </label>
+                    <input type="text" id="uuidCustomNs" placeholder="自定义命名空间 UUID" style="width:320px" hidden />
+                    <input type="text" id="uuidName" placeholder="名称（如域名、URL）" style="flex:1;min-width:200px" />
+                </div>
+
+                <textarea id="uuidOutput" class="plain-area" style="min-height:280px;margin-top:14px" readonly placeholder="点击"生成"按钮"></textarea>
+
+                <div class="uuid-versions-info">
+                    <h3>UUID 版本说明</h3>
+                    <table class="info-table">
+                        <thead><tr><th>版本</th><th>算法</th><th>特点</th></tr></thead>
+                        <tbody>
+                            <tr><td><b>v1</b></td><td>时间戳 + MAC 地址</td><td>全局唯一，但包含 MAC 地址，有隐私风险</td></tr>
+                            <tr><td><b>v3</b></td><td>命名空间 + 名称 → MD5</td><td>同输入同输出，可复现；MD5 安全性较低</td></tr>
+                            <tr><td><b>v4</b></td><td>完全随机</td><td><b>最广泛使用</b>，重复概率极低，无需中央管理</td></tr>
+                            <tr><td><b>v5</b></td><td>命名空间 + 名称 → SHA-1</td><td>与 v3 类似，但使用 SHA-1，更安全</td></tr>
+                            <tr><td><b>v7</b></td><td>时间戳 + 随机</td><td><b>新项目推荐</b>，时间有序（适合数据库索引）+ 随机性</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </section>
 
@@ -504,6 +584,6 @@
     <div id="toast" class="toast" hidden></div>
 
     <script src="https://cdn.jsdelivr.net/npm/spark-md5@3.0.2/spark-md5.min.js"></script>
-    <script src="script.js?v=29"></script>
+    <script src="script.js?v=36"></script>
 </body>
 </html>

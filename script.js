@@ -31,9 +31,19 @@
     function showToast(msg, type = 'info') {
         toast.textContent = msg;
         toast.hidden = false;
-        toast.style.backgroundColor = type === 'error' ? '#ef4444' : (type === 'success' ? '#10b981' : '#1f2937');
+        toast.className = 'toast';
+        if (type === 'error') {
+            toast.style.backgroundColor = '#ef4444';
+        } else if (type === 'success') {
+            toast.style.backgroundColor = '#10b981';
+        } else if (type === 'warning') {
+            toast.style.backgroundColor = '';
+            toast.classList.add('toast-warn');
+        } else {
+            toast.style.backgroundColor = '#1f2937';
+        }
         clearTimeout(showToast._t);
-        showToast._t = setTimeout(() => { toast.hidden = true; }, 1800);
+        showToast._t = setTimeout(() => { toast.hidden = true; }, type === 'warning' ? 3500 : 1800);
     }
 
     function setStatus(kind, msg) {
@@ -148,12 +158,15 @@
 
         if (parsed !== null && parsed !== undefined) {
             currentObj = parsed;
-            renderFoldable(parsed);
-            buildTree(parsed);
             if (strictOk) {
+                renderFoldable(parsed, false);
+                buildTree(parsed);
                 setStatus('ok', 'JSON 格式正确 ✓');
             } else {
+                renderFoldable(parsed, true);
+                buildTree(parsed);
                 setStatus('warn', 'JSON 不完整或有小错误，已尽力格式化');
+                showToast('⚠ JSON 格式不完整，已尽力格式化', 'warning');
             }
             return;
         }
@@ -382,16 +395,56 @@
     TolerantParser.INCOMPLETE = Symbol('INCOMPLETE');
 
     // ---------- Foldable text view ----------
-    // 每一行是一个 .jl 元素；容器开始行带折叠按钮，点击后隐藏内部行并在该行末尾显示占位符
-    function renderFoldable(data) {
+    function renderFoldable(data, tolerant) {
         output.innerHTML = '';
         const indent = getIndent();
         const frag = document.createDocumentFragment();
         renderValueLines(frag, data, 0, indent, '', false);
         output.appendChild(frag);
-        // 输出字符数用还原后的文本估算
         const pretty = JSON.stringify(data, null, indent);
         outputInfo.textContent = countInfo(pretty);
+
+        // 容错模式：标记补齐的尾部闭合行
+        if (tolerant) {
+            markAutoClosedTails(pretty);
+        }
+    }
+
+    // 把格式化后的文本和原始输入对比，找出原输入里缺少的尾部闭合括号行并标红
+    function markAutoClosedTails(prettyText) {
+        const raw = input.value.trim();
+        const prettyLines = prettyText.split('\n');
+
+        // 从格式化结果末尾往前数，看原输入里是否缺少这些闭合括号
+        // 策略：统计原输入里的 { [ } ] 数量，和格式化结果比较
+        const countInRaw = { '{': 0, '}': 0, '[': 0, ']': 0 };
+        const countInPretty = { '{': 0, '}': 0, '[': 0, ']': 0 };
+
+        // 简单计数（忽略字符串内部的括号，用正则去掉字符串内容）
+        function countBrackets(s) {
+            // 去掉字符串内容
+            const stripped = s.replace(/"(?:\\.|[^"\\])*"/g, '""');
+            const c = { '{': 0, '}': 0, '[': 0, ']': 0 };
+            for (const ch of stripped) {
+                if (ch in c) c[ch]++;
+            }
+            return c;
+        }
+
+        const rawC = countBrackets(raw);
+        const prettyC = countBrackets(prettyText);
+
+        // 补齐的 } 数量 = prettyC['}'] - rawC['}']
+        // 补齐的 ] 数量 = prettyC[']'] - rawC[']']
+        let missingClose = (prettyC['}'] - rawC['}']) + (prettyC[']'] - rawC[']']);
+        if (missingClose <= 0) return;
+
+        // 从输出 DOM 的末尾往前标红 missingClose 个 jl-tail 行
+        const allTails = output.querySelectorAll('.jl-tail');
+        const tailArr = Array.from(allTails).reverse();
+        for (let i = 0; i < Math.min(missingClose, tailArr.length); i++) {
+            tailArr[i].classList.add('auto-closed');
+        }
     }
 
     /**
@@ -1116,33 +1169,231 @@
     // ================================================================
     // ===================== UUID =====================
     // ================================================================
+    const uuidVersionEl = document.getElementById('uuidVersion');
+    const uuidNsRow = document.getElementById('uuidNsRow');
+    const uuidNamespaceEl = document.getElementById('uuidNamespace');
+    const uuidCustomNs = document.getElementById('uuidCustomNs');
+    const uuidNameEl = document.getElementById('uuidName');
+
+    // 版本切换时显示/隐藏命名空间行
+    function syncNsRow() {
+        const v = uuidVersionEl.value;
+        const needNs = (v === '3' || v === '5');
+        uuidNsRow.hidden = !needNs;
+        uuidNsRow.style.display = needNs ? 'flex' : 'none';
+    }
+    uuidVersionEl.addEventListener('change', syncNsRow);
+    syncNsRow(); // 初始化
+
+    uuidNamespaceEl.addEventListener('change', () => {
+        const isCustom = uuidNamespaceEl.value === 'custom';
+        uuidCustomNs.hidden = !isCustom;
+        uuidCustomNs.style.display = isCustom ? '' : 'none';
+    });
+
+    // 辅助：bytes → hex UUID 字符串
+    function bytesToUUID(b) {
+        const h = Array.from(b, x => x.toString(16).padStart(2, '0'));
+        return `${h.slice(0,4).join('')}-${h.slice(4,6).join('')}-${h.slice(6,8).join('')}-${h.slice(8,10).join('')}-${h.slice(10,16).join('')}`;
+    }
+
+    // v4: 完全随机
     function uuidv4() {
         if (crypto.randomUUID) return crypto.randomUUID();
         const b = crypto.getRandomValues(new Uint8Array(16));
         b[6] = (b[6] & 0x0f) | 0x40;
         b[8] = (b[8] & 0x3f) | 0x80;
-        const h = Array.from(b, x => x.toString(16).padStart(2, '0'));
-        return `${h.slice(0,4).join('')}-${h.slice(4,6).join('')}-${h.slice(6,8).join('')}-${h.slice(8,10).join('')}-${h.slice(10,16).join('')}`;
+        return bytesToUUID(b);
     }
 
-    document.querySelector('[data-action="uuid-gen"]').addEventListener('click', () => {
+    // v1: 时间戳 + 随机节点（浏览器无法获取真实 MAC，用随机替代）
+    function uuidv1() {
+        // 100ns intervals since 1582-10-15
+        const epoch = Date.UTC(1582, 9, 15);
+        const now = Date.now();
+        const ticks = BigInt(now - epoch) * 10000n + BigInt(Math.floor(Math.random() * 10000));
+        const timeLow = Number(ticks & 0xFFFFFFFFn);
+        const timeMid = Number((ticks >> 32n) & 0xFFFFn);
+        const timeHi = Number((ticks >> 48n) & 0x0FFFn) | 0x1000;
+        const clockSeq = (Math.random() * 0x3FFF | 0) | 0x8000;
+        const node = crypto.getRandomValues(new Uint8Array(6));
+        node[0] |= 0x01; // multicast bit
+
+        const b = new Uint8Array(16);
+        // time_low
+        b[0] = (timeLow >> 24) & 0xFF; b[1] = (timeLow >> 16) & 0xFF;
+        b[2] = (timeLow >> 8) & 0xFF; b[3] = timeLow & 0xFF;
+        // time_mid
+        b[4] = (timeMid >> 8) & 0xFF; b[5] = timeMid & 0xFF;
+        // time_hi_and_version
+        b[6] = (timeHi >> 8) & 0xFF; b[7] = timeHi & 0xFF;
+        // clock_seq
+        b[8] = (clockSeq >> 8) & 0xFF; b[9] = clockSeq & 0xFF;
+        // node
+        for (let i = 0; i < 6; i++) b[10 + i] = node[i];
+        return bytesToUUID(b);
+    }
+
+    // v7: 时间有序 + 随机（RFC 9562）
+    function uuidv7() {
+        const b = crypto.getRandomValues(new Uint8Array(16));
+        const ts = Date.now();
+        // 48-bit timestamp in ms
+        b[0] = (ts / 2**40) & 0xFF;
+        b[1] = (ts / 2**32) & 0xFF;
+        b[2] = (ts / 2**24) & 0xFF;
+        b[3] = (ts / 2**16) & 0xFF;
+        b[4] = (ts / 2**8) & 0xFF;
+        b[5] = ts & 0xFF;
+        // version 7
+        b[6] = (b[6] & 0x0f) | 0x70;
+        // variant 10xx
+        b[8] = (b[8] & 0x3f) | 0x80;
+        return bytesToUUID(b);
+    }
+
+    // v3 / v5: 命名空间 + 名称
+    async function uuidv3or5(version, nsUuid, name) {
+        // 解析命名空间 UUID 为 16 字节
+        const nsHex = nsUuid.replace(/-/g, '');
+        const nsBytes = new Uint8Array(16);
+        for (let i = 0; i < 16; i++) nsBytes[i] = parseInt(nsHex.substr(i * 2, 2), 16);
+        // 拼接 namespace + name
+        const nameBytes = new TextEncoder().encode(name);
+        const data = new Uint8Array(nsBytes.length + nameBytes.length);
+        data.set(nsBytes); data.set(nameBytes, nsBytes.length);
+
+        let hashBytes;
+        if (version === 3) {
+            // MD5
+            if (window.SparkMD5) {
+                const hex = SparkMD5.ArrayBuffer.hash(data.buffer);
+                hashBytes = new Uint8Array(16);
+                for (let i = 0; i < 16; i++) hashBytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+            } else {
+                throw new Error('SparkMD5 未加载，v3 不可用');
+            }
+        } else {
+            // SHA-1
+            const buf = await crypto.subtle.digest('SHA-1', data);
+            hashBytes = new Uint8Array(buf).slice(0, 16);
+        }
+        // 设置版本和变体
+        hashBytes[6] = (hashBytes[6] & 0x0f) | (version === 3 ? 0x30 : 0x50);
+        hashBytes[8] = (hashBytes[8] & 0x3f) | 0x80;
+        return bytesToUUID(hashBytes);
+    }
+
+    document.querySelector('[data-action="uuid-gen"]').addEventListener('click', async () => {
+        const ver = uuidVersionEl.value;
         const n = Math.max(1, Math.min(1000, parseInt(document.getElementById('uuidCount').value, 10) || 1));
         const upper = document.getElementById('uuidUpper').checked;
         const noDash = document.getElementById('uuidNoDash').checked;
         const arr = [];
-        for (let i = 0; i < n; i++) {
-            let id = uuidv4();
-            if (noDash) id = id.replace(/-/g, '');
-            if (upper) id = id.toUpperCase();
-            arr.push(id);
+
+        try {
+            for (let i = 0; i < n; i++) {
+                let id;
+                if (ver === '4') {
+                    id = uuidv4();
+                } else if (ver === '1') {
+                    id = uuidv1();
+                } else if (ver === '7') {
+                    id = uuidv7();
+                } else if (ver === '3' || ver === '5') {
+                    let ns = uuidNamespaceEl.value;
+                    if (ns === 'custom') ns = uuidCustomNs.value.trim();
+                    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ns)) {
+                        showToast('命名空间 UUID 格式不正确', 'error'); return;
+                    }
+                    const name = uuidNameEl.value;
+                    if (!name) { showToast('请输入名称', 'error'); return; }
+                    // v3/v5 同输入同输出，批量时加序号区分
+                    id = await uuidv3or5(parseInt(ver), ns, n > 1 ? name + i : name);
+                }
+                if (noDash) id = id.replace(/-/g, '');
+                if (upper) id = id.toUpperCase();
+                arr.push(id);
+            }
+            document.getElementById('uuidOutput').value = arr.join('\n');
+        } catch (e) {
+            showToast('生成失败：' + e.message, 'error');
         }
-        document.getElementById('uuidOutput').value = arr.join('\n');
     });
     document.querySelector('[data-action="uuid-copy"]').addEventListener('click', () => {
         copyTextSimple(document.getElementById('uuidOutput').value, 'UUID 列表');
     });
     document.querySelector('[data-action="uuid-clear"]').addEventListener('click', () => {
         document.getElementById('uuidOutput').value = '';
+    });
+
+    // ================================================================
+    // ===================== 字符串格式化 =====================
+    // ================================================================
+    const strfmtLeft = document.getElementById('strfmtLeft');
+    const strfmtRight = document.getElementById('strfmtRight');
+    const strfmtStatus = document.getElementById('strfmtStatus');
+    const strfmtTab2Space = document.getElementById('strfmtTab2Space');
+    const strfmtTrimLines = document.getElementById('strfmtTrimLines');
+    const strfmtRemoveEmpty = document.getElementById('strfmtRemoveEmpty');
+    const strfmtAuto = document.getElementById('strfmtAuto');
+
+    function doStrFormat() {
+        let s = strfmtLeft.value;
+        if (!s) { strfmtRight.value = ''; strfmtStatus.textContent = '就绪'; return; }
+
+        // 替换转义字符为真实字符
+        s = s.replace(/\\n/g, '\n');
+        s = s.replace(/\\t/g, '\t');
+        s = s.replace(/\\r/g, '\r');
+        s = s.replace(/\\\\/g, '\\');
+
+        // 选项
+        if (strfmtTab2Space.checked) s = s.replace(/\t/g, '    ');
+        if (strfmtTrimLines.checked) s = s.split('\n').map(l => l.trim()).join('\n');
+        if (strfmtRemoveEmpty.checked) s = s.replace(/\n{3,}/g, '\n\n');
+
+        strfmtRight.value = s;
+        const lineCount = s.split('\n').length;
+        strfmtStatus.textContent = `已格式化，${lineCount} 行 · ${s.length} 字符`;
+        strfmtStatus.style.color = 'var(--success)';
+    }
+
+    function doStrReverse() {
+        let s = strfmtRight.value;
+        if (!s) { strfmtLeft.value = ''; strfmtStatus.textContent = '就绪'; return; }
+
+        // 反向：真实换行/制表符转回转义字符
+        s = s.replace(/\\/g, '\\\\');
+        s = s.replace(/\t/g, '\\t');
+        s = s.replace(/\r/g, '\\r');
+        s = s.replace(/\n/g, '\\n');
+
+        strfmtLeft.value = s;
+        strfmtStatus.textContent = `已逆向转换，${s.length} 字符`;
+        strfmtStatus.style.color = 'var(--success)';
+    }
+
+    document.getElementById('strfmtFormat').addEventListener('click', doStrFormat);
+    document.getElementById('strfmtReverse').addEventListener('click', doStrReverse);
+    document.getElementById('strfmtClear').addEventListener('click', () => {
+        strfmtLeft.value = '';
+        strfmtRight.value = '';
+        strfmtStatus.textContent = '就绪';
+        strfmtStatus.style.color = '';
+    });
+
+    // 选项变化时重新格式化
+    [strfmtTab2Space, strfmtTrimLines, strfmtRemoveEmpty].forEach(el => {
+        el.addEventListener('change', () => { if (strfmtLeft.value) doStrFormat(); });
+    });
+
+    // 自动格式化（输入时）
+    let strfmtTimer;
+    strfmtLeft.addEventListener('input', () => {
+        if (!strfmtAuto.checked) return;
+        clearTimeout(strfmtTimer);
+        strfmtTimer = setTimeout(doStrFormat, 200);
     });
 
     // ================================================================

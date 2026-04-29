@@ -182,9 +182,6 @@ body {
 .main-area {
     flex: 1;
     padding: 84px 48px 60px;
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
 }
 
 /* Toolbar */
@@ -198,7 +195,10 @@ body {
     gap: 8px;
     align-items: center;
     justify-content: flex-start;
-    box-shadow: var(--shadow);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
+    position: sticky;
+    top: 68px;
+    z-index: 40;
 }
 
 .toolbar-left, .toolbar-right {
@@ -471,6 +471,23 @@ select {
 .output-text .fold-block.collapsed > .fold-body,
 .output-text .fold-block.collapsed > .jl-tail {
     display: none;
+}
+
+/* 容错模式：自动补齐的闭合行标红 */
+.output-text .jl.auto-closed {
+    background-color: rgba(239, 68, 68, 0.10);
+    border-left: 3px solid #ef4444;
+    padding-left: 8px;
+    margin-left: -8px;
+}
+
+.output-text .jl.auto-closed .tk-punc {
+    color: #ef4444 !important;
+    font-weight: 700;
+}
+
+[data-theme="dark"] .output-text .jl.auto-closed {
+    background-color: rgba(239, 68, 68, 0.18);
 }
 
 .output-text .err-line {
@@ -765,7 +782,7 @@ select {
 .toast {
     position: fixed;
     left: 50%;
-    bottom: 60px;
+    top: 90px;
     transform: translateX(-50%);
     background-color: #1f2937;
     color: #fff;
@@ -774,11 +791,21 @@ select {
     font-size: 15px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
     z-index: 100;
-    animation: toastIn 0.2s ease;
+    animation: toastIn 0.25s ease;
+    max-width: 90vw;
+    text-align: center;
+}
+
+.toast.toast-warn {
+    background-color: #ef4444;
+    font-size: 18px;
+    font-weight: 700;
+    padding: 16px 36px;
+    box-shadow: 0 8px 30px rgba(239, 68, 68, 0.35);
 }
 
 @keyframes toastIn {
-    from { opacity: 0; transform: translate(-50%, 10px); }
+    from { opacity: 0; transform: translate(-50%, -12px); }
     to { opacity: 1; transform: translate(-50%, 0); }
 }
 
@@ -806,8 +833,56 @@ textarea::-webkit-scrollbar-track,
 }
 
 /* ========== Tabs ========== */
-.tab-panel { display: none; flex-direction: column; gap: 24px; }
-.tab-panel.active { display: flex; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+.tab-panel > * + * { margin-top: 20px; }
+
+/* UUID 版本说明表格 */
+.uuid-versions-info h3 {
+    margin: 0 0 12px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.info-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.info-table th,
+.info-table td {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    text-align: left;
+}
+
+.info-table th {
+    background-color: var(--bg-muted);
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.info-table td b {
+    color: var(--primary);
+}
+
+.uuid-ns-row input[type="text"] {
+    height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background-color: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    outline: none;
+}
+
+.uuid-ns-row input[type="text"]:focus {
+    border-color: var(--primary);
+}
 
 /* ========== Generic tool card ========== */
 .tool-card {
@@ -833,6 +908,22 @@ textarea::-webkit-scrollbar-track,
     font-weight: 600;
 }
 
+.tool-desc {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+
+.tool-desc code {
+    background-color: var(--bg-muted);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px;
+    color: var(--json-key);
+}
+
 .tool-card label.block-label {
     font-size: 14px;
     color: var(--text-muted);
@@ -845,6 +936,8 @@ textarea::-webkit-scrollbar-track,
     gap: 10px;
     align-items: center;
 }
+
+.row[hidden] { display: none !important; }
 
 .row > input[type="text"],
 .row > input[type="number"],
