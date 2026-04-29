@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>在线开发者工具箱 | JSON / Base64 / 时间戳 / 哈希 / 正则</title>
     <meta name="description" content="免费在线开发者工具箱：JSON 格式化、Base64、URL 编解码、时间戳转换、哈希、UUID、正则测试等。" />
-    <link rel="stylesheet" href="style.css?v=19" />
+    <link rel="stylesheet" href="style.css?v=26" />
 </head>
 <body>
     <header class="site-header">
@@ -84,6 +84,14 @@
                 <section class="editor-pane">
                     <div class="pane-header">
                         <span class="pane-title">结果</span>
+                        <div class="result-actions">
+                            <button class="mini-btn" id="btnRemoveEmpty">删除空元素</button>
+                            <button class="mini-btn" id="btnCopyResult">复制结果</button>
+                            <div class="tree-actions" id="treeActions" hidden>
+                                <button class="mini-btn" data-tree="expand">全部展开</button>
+                                <button class="mini-btn" data-tree="collapse">全部折叠</button>
+                            </div>
+                        </div>
                         <div class="view-switch">
                             <button class="switch-btn active" data-view="text">文本视图</button>
                             <button class="switch-btn" data-view="tree">树形视图</button>
@@ -95,10 +103,6 @@
                     </div>
                     <div class="result-foot">
                         <span id="outputInfo" class="pane-info">0 行 · 0 字符</span>
-                        <div class="tree-actions" id="treeActions" hidden>
-                            <button class="mini-btn" data-tree="expand">全部展开</button>
-                            <button class="mini-btn" data-tree="collapse">全部折叠</button>
-                        </div>
                     </div>
                 </section>
             </div>
@@ -500,6 +504,6 @@
     <div id="toast" class="toast" hidden></div>
 
     <script src="https://cdn.jsdelivr.net/npm/spark-md5@3.0.2/spark-md5.min.js"></script>
-    <script src="script.js?v=18"></script>
+    <script src="script.js?v=27"></script>
 </body>
 </html>

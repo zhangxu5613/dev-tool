@@ -72,7 +72,18 @@
 
     function valueHTML(v) {
         const t = typeOf(v);
-        if (t === 'string') return `<span class="tk-str">"${escapeHTML(v)}"</span>`;
+        if (t === 'string') {
+            // 检测 HTTP(S) 链接
+            if (/^https?:\/\/.+/i.test(v)) {
+                const escaped = escapeHTML(v);
+                const isImg = /\.(png|jpe?g|gif|webp|svg|bmp|ico)(\?.*)?$/i.test(v);
+                const popup = isImg
+                    ? `<span class="link-popup"><a href="${escaped}" target="_blank" rel="noopener">在新窗口打开</a><img class="img-preview" src="${escaped}" alt="预览" /></span>`
+                    : `<span class="link-popup"><a href="${escaped}" target="_blank" rel="noopener">在新窗口打开链接</a></span>`;
+                return `<span class="tk-str jl-link">"${escaped}"${popup}</span>`;
+            }
+            return `<span class="tk-str">"${escapeHTML(v)}"</span>`;
+        }
         if (t === 'number') return `<span class="tk-num">${v}</span>`;
         if (t === 'boolean') return `<span class="tk-bool">${v}</span>`;
         if (t === 'null') return `<span class="tk-null">null</span>`;
@@ -401,26 +412,29 @@
             const keys = t === 'array' ? value.map((_, i) => i) : Object.keys(value);
             const open = t === 'array' ? '[' : '{';
             const close = t === 'array' ? ']' : '}';
+            const typeLabel = t === 'array' ? 'Array' : 'Object';
             const summary = `${keys.length} ${t === 'array' ? '项' : '键'}`;
 
-            // 容器包装，便于统一折叠
             const wrap = document.createElement('div');
             wrap.className = 'fold-block expanded';
+
+            const canFold = keys.length > 0;
 
             // 开始行
             const headLine = document.createElement('div');
             headLine.className = 'jl jl-head';
-            // 空内容的对象/数组不显示折叠箭头
-            const canFold = keys.length > 0;
             headLine.innerHTML =
                 `<span class="pad">${pad}</span>` +
-                (canFold ? `<span class="fold-toggle" title="折叠/展开">▼</span>` : `<span class="fold-toggle empty"></span>`) +
+                (canFold ? `<span class="fold-toggle expanded" title="折叠/展开">▼</span>` : '') +
                 `${keyPrefixHTML}<span class="tk-punc">${open}</span>` +
-                (canFold ? `<span class="fold-placeholder"><span class="tk-punc">${close}</span>${comma}<span class="fold-summary">  // ${summary}</span></span>` : `<span class="tk-punc">${close}</span>${comma}`);
+                (canFold
+                    ? `<span class="fold-inline-btn collapse-btn" title="折叠">-</span>` +
+                      `<span class="fold-inline-btn expand-btn" title="展开">+</span>` +
+                      `<span class="fold-placeholder"><span class="fold-type">${typeLabel}</span> <span class="tk-punc">${close}</span>${comma}<span class="fold-summary"> // ${summary}</span></span>`
+                    : `<span class="tk-punc">${close}</span>${comma}`);
             wrap.appendChild(headLine);
 
             if (canFold) {
-                // 子行容器
                 const body = document.createElement('div');
                 body.className = 'fold-body';
                 keys.forEach((k, idx) => {
@@ -432,25 +446,52 @@
                 });
                 wrap.appendChild(body);
 
-                // 结束行
                 const tailLine = document.createElement('div');
                 tailLine.className = 'jl jl-tail';
                 tailLine.innerHTML = `<span class="pad">${pad}</span><span class="tk-punc">${close}</span>${comma}`;
                 wrap.appendChild(tailLine);
 
-                // 折叠交互
-                const toggle = headLine.querySelector('.fold-toggle');
+                const expandBtn = headLine.querySelector('.expand-btn');
+                const collapseBtn = headLine.querySelector('.collapse-btn');
                 const placeholder = headLine.querySelector('.fold-placeholder');
-                toggle.addEventListener('click', () => {
-                    const collapsed = wrap.classList.toggle('collapsed');
-                    wrap.classList.toggle('expanded', !collapsed);
-                    toggle.textContent = collapsed ? '▶' : '▼';
-                    body.style.display = collapsed ? 'none' : '';
-                    tailLine.style.display = collapsed ? 'none' : '';
-                    placeholder.style.display = collapsed ? 'inline' : 'none';
+                const toggleArrow = headLine.querySelector('.fold-toggle');
+
+                function doCollapse() {
+                    wrap.classList.add('collapsed');
+                    wrap.classList.remove('expanded');
+                    body.style.display = 'none';
+                    tailLine.style.display = 'none';
+                    placeholder.style.display = 'inline';
+                    expandBtn.style.display = 'inline-flex';
+                    collapseBtn.style.display = 'none';
+                    toggleArrow.textContent = '▶';
+                    toggleArrow.classList.remove('expanded');
+                    toggleArrow.classList.add('collapsed');
+                }
+                function doExpand() {
+                    wrap.classList.remove('collapsed');
+                    wrap.classList.add('expanded');
+                    body.style.display = '';
+                    tailLine.style.display = '';
+                    placeholder.style.display = 'none';
+                    expandBtn.style.display = 'none';
+                    collapseBtn.style.display = 'inline-flex';
+                    toggleArrow.textContent = '▼';
+                    toggleArrow.classList.remove('collapsed');
+                    toggleArrow.classList.add('expanded');
+                }
+
+                collapseBtn.addEventListener('click', doCollapse);
+                expandBtn.addEventListener('click', doExpand);
+                toggleArrow.addEventListener('click', () => {
+                    if (wrap.classList.contains('collapsed')) doExpand();
+                    else doCollapse();
                 });
-                // 默认隐藏折叠占位
+
+                // 默认展开
                 placeholder.style.display = 'none';
+                expandBtn.style.display = 'none';
+                collapseBtn.style.display = 'inline-flex';
             }
 
             parent.appendChild(wrap);
@@ -535,23 +576,29 @@
         output.querySelectorAll('.fold-block').forEach((wrap, idx) => {
             const body = wrap.querySelector(':scope > .fold-body');
             const tail = wrap.querySelector(':scope > .jl-tail');
-            const toggle = wrap.querySelector(':scope > .jl-head > .fold-toggle');
+            const expandBtn = wrap.querySelector(':scope > .jl-head > .expand-btn');
+            const collapseBtn = wrap.querySelector(':scope > .jl-head > .collapse-btn');
             const placeholder = wrap.querySelector(':scope > .jl-head > .fold-placeholder');
-            if (!body || !toggle || !placeholder) return;
+            const arrow = wrap.querySelector(':scope > .jl-head > .fold-toggle');
+            if (!body || !placeholder) return;
             if (expand || idx === 0) {
                 wrap.classList.remove('collapsed');
                 wrap.classList.add('expanded');
                 body.style.display = '';
                 if (tail) tail.style.display = '';
                 placeholder.style.display = 'none';
-                toggle.textContent = '▼';
+                if (expandBtn) expandBtn.style.display = 'none';
+                if (collapseBtn) collapseBtn.style.display = 'inline-flex';
+                if (arrow) { arrow.textContent = '▼'; arrow.classList.remove('collapsed'); arrow.classList.add('expanded'); }
             } else {
                 wrap.classList.add('collapsed');
                 wrap.classList.remove('expanded');
                 body.style.display = 'none';
                 if (tail) tail.style.display = 'none';
                 placeholder.style.display = 'inline';
-                toggle.textContent = '▶';
+                if (expandBtn) expandBtn.style.display = 'inline-flex';
+                if (collapseBtn) collapseBtn.style.display = 'none';
+                if (arrow) { arrow.textContent = '▶'; arrow.classList.remove('expanded'); arrow.classList.add('collapsed'); }
             }
         });
     }
@@ -664,6 +711,46 @@
         if (currentObj !== null) return JSON.stringify(currentObj, null, getIndent());
         return output.innerText || '';
     }
+
+    // ---------- 删除空元素 ----------
+    function removeEmpty(v) {
+        if (Array.isArray(v)) {
+            return v
+                .map(removeEmpty)
+                .filter(x => !isEmpty(x));
+        }
+        if (v && typeof v === 'object') {
+            const out = {};
+            for (const k of Object.keys(v)) {
+                const cleaned = removeEmpty(v[k]);
+                if (!isEmpty(cleaned)) out[k] = cleaned;
+            }
+            return out;
+        }
+        return v;
+    }
+
+    function isEmpty(v) {
+        if (v === null || v === undefined) return true;
+        if (v === '') return true;
+        if (Array.isArray(v) && v.length === 0) return true;
+        if (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0) return true;
+        return false;
+    }
+
+    document.getElementById('btnRemoveEmpty').addEventListener('click', () => {
+        if (currentObj === null) { showToast('请先输入有效 JSON'); return; }
+        const cleaned = removeEmpty(currentObj);
+        currentObj = cleaned;
+        renderFoldable(cleaned);
+        buildTree(cleaned);
+        showToast('已删除空元素（仅修改结果，原始数据不变）', 'success');
+    });
+
+    // ---------- 复制结果 ----------
+    document.getElementById('btnCopyResult').addEventListener('click', () => {
+        copyText(getOutputPlainText(), '结果');
+    });
 
     async function copyText(text, label) {
         if (!text) { showToast('内容为空'); return; }

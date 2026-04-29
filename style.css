@@ -57,7 +57,7 @@ body {
         "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
     background-color: var(--bg);
     color: var(--text);
-    font-size: 18px;
+    font-size: 15px;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     display: flex;
@@ -77,25 +77,27 @@ body {
 .site-header {
     background-color: var(--bg-elev);
     border-bottom: 1px solid var(--border);
-    position: sticky;
+    position: fixed;
     top: 0;
+    left: 0;
+    right: 0;
     z-index: 50;
-    backdrop-filter: saturate(180%) blur(12px);
 }
 
 .header-inner {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    height: 80px;
+    justify-content: flex-start;
+    gap: 24px;
+    height: 68px;
 }
 
 .logo {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
     font-weight: 600;
-    font-size: 22px;
+    font-size: 19px;
 }
 
 .logo-icon {
@@ -120,9 +122,9 @@ body {
 .nav-item {
     color: var(--text-muted);
     text-decoration: none;
-    padding: 10px 20px;
+    padding: 8px 16px;
     border-radius: 8px;
-    font-size: 16px;
+    font-size: 14px;
     transition: background-color 0.15s, color 0.15s;
 }
 
@@ -144,6 +146,7 @@ body {
 .header-actions {
     display: flex;
     gap: 10px;
+    margin-left: auto;
 }
 
 .icon-btn {
@@ -178,7 +181,7 @@ body {
 /* Main */
 .main-area {
     flex: 1;
-    padding: 32px 48px 60px;
+    padding: 136px 48px 60px;
     display: flex;
     flex-direction: column;
     gap: 24px;
@@ -187,15 +190,19 @@ body {
 /* Toolbar */
 .toolbar {
     background-color: var(--bg-elev);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 16px 22px;
+    border-bottom: 1px solid var(--border);
+    padding: 12px 48px;
     display: flex;
     flex-wrap: wrap;
-    gap: 18px;
+    gap: 14px;
     align-items: center;
     justify-content: space-between;
-    box-shadow: var(--shadow);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
+    position: fixed;
+    top: 69px;
+    left: 0;
+    right: 0;
+    z-index: 40;
 }
 
 .toolbar-left, .toolbar-right {
@@ -206,25 +213,25 @@ body {
 }
 
 .btn {
-    height: 42px;
-    padding: 0 20px;
+    height: 36px;
+    padding: 0 16px;
     border: 1px solid var(--border);
     background-color: var(--bg-elev);
     color: var(--text);
     border-radius: 8px;
     cursor: pointer;
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 500;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     transition: all 0.15s;
     white-space: nowrap;
 }
 
 .btn svg {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
 }
 
 .btn:hover {
@@ -258,19 +265,19 @@ body {
 .field-inline {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    font-size: 15px;
+    gap: 6px;
+    font-size: 13px;
     color: var(--text-muted);
 }
 
 select {
-    height: 42px;
-    padding: 0 12px;
+    height: 36px;
+    padding: 0 10px;
     border: 1px solid var(--border);
     border-radius: 8px;
     background-color: var(--bg-elev);
     color: var(--text);
-    font-size: 15px;
+    font-size: 13px;
     cursor: pointer;
 }
 
@@ -300,18 +307,18 @@ select {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 14px 20px;
+    padding: 10px 16px;
     border-bottom: 1px solid var(--border);
     background-color: var(--bg-muted);
 }
 
 .pane-title {
     font-weight: 600;
-    font-size: 16px;
+    font-size: 14px;
 }
 
 .pane-info {
-    font-size: 14px;
+    font-size: 12px;
     color: var(--text-muted);
 }
 
@@ -330,10 +337,10 @@ select {
     flex: 1;
     border: 0;
     resize: none;
-    padding: 18px 24px;
+    padding: 14px 18px;
     font-family: "SF Mono", Menlo, Consolas, monospace;
-    font-size: 16px;
-    line-height: 1.8;
+    font-size: 14px;
+    line-height: 1.7;
     background-color: transparent;
     color: var(--text);
     outline: none;
@@ -346,12 +353,12 @@ select {
 
 .output-text {
     margin: 0;
-    padding: 18px 24px;
+    padding: 14px 18px;
     flex: 1;
     overflow: auto;
     font-family: "SF Mono", Menlo, Consolas, monospace;
-    font-size: 16px;
-    line-height: 1.9;
+    font-size: 14px;
+    line-height: 1.8;
     white-space: pre;
     color: var(--text);
     background-color: var(--bg-elev);
@@ -361,13 +368,14 @@ select {
 .output-text .jl {
     position: relative;
     white-space: pre;
-    padding-left: 22px; /* 给折叠箭头留位 */
+    padding-left: 22px;
 }
 
 .output-text .jl .pad {
     white-space: pre;
 }
 
+/* 左侧三角箭头 */
 .output-text .fold-toggle {
     position: absolute;
     left: 2px;
@@ -379,7 +387,7 @@ select {
     justify-content: center;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 11px;
+    font-size: 10px;
     user-select: none;
     border-radius: 4px;
     transition: color 0.15s, background-color 0.15s;
@@ -390,8 +398,64 @@ select {
     background-color: var(--bg-muted);
 }
 
-.output-text .fold-toggle.empty {
-    visibility: hidden;
+/* 折叠后显示的类型标签 */
+.fold-type {
+    display: inline-block;
+    padding: 0 6px;
+    margin-right: 2px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    letter-spacing: 0.3px;
+    vertical-align: middle;
+    background-color: rgba(124, 58, 237, 0.12);
+    color: #7c3aed;
+}
+
+[data-theme="dark"] .fold-type {
+    background-color: rgba(167, 139, 250, 0.2);
+    color: #a78bfa;
+}
+
+/* 行内折叠按钮 + / - */
+.fold-inline-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin-left: 8px;
+    vertical-align: middle;
+    border: none;
+    border-radius: 4px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s;
+}
+
+/* 折叠按钮 - ：橙色 */
+.fold-inline-btn.collapse-btn {
+    background-color: #f59e0b;
+    color: #fff;
+}
+
+.fold-inline-btn.collapse-btn:hover {
+    background-color: #d97706;
+}
+
+/* 展开按钮 + ：绿色 */
+.fold-inline-btn.expand-btn {
+    background-color: #10b981;
+    color: #fff;
+}
+
+.fold-inline-btn.expand-btn:hover {
+    background-color: #059669;
 }
 
 .output-text .fold-summary {
@@ -420,10 +484,10 @@ select {
 .output-tree {
     flex: 1;
     overflow: auto;
-    padding: 18px 24px;
+    padding: 14px 18px;
     font-family: "SF Mono", Menlo, Consolas, monospace;
-    font-size: 16px;
-    line-height: 2;
+    font-size: 14px;
+    line-height: 1.8;
     background-color: var(--bg-elev);
 }
 
@@ -476,12 +540,12 @@ select {
 }
 
 .status-bar {
-    padding: 12px 20px;
+    padding: 8px 16px;
     border-top: 1px solid var(--border);
-    font-size: 14px;
+    font-size: 13px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .status-bar::before {
@@ -499,7 +563,7 @@ select {
 .status-warn { color: var(--warning); }
 
 .result-foot {
-    padding: 12px 20px;
+    padding: 8px 16px;
     border-top: 1px solid var(--border);
     display: flex;
     align-items: center;
@@ -511,17 +575,17 @@ select {
     display: inline-flex;
     background-color: var(--bg-elev);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 3px;
+    border-radius: 6px;
+    padding: 2px;
 }
 
 .switch-btn {
     border: 0;
     background: transparent;
     color: var(--text-muted);
-    padding: 6px 14px;
-    font-size: 14px;
-    border-radius: 6px;
+    padding: 4px 12px;
+    font-size: 12px;
+    border-radius: 5px;
     cursor: pointer;
     transition: all 0.15s;
 }
@@ -535,17 +599,77 @@ select {
     border: 1px solid var(--border);
     background-color: var(--bg-elev);
     color: var(--text-muted);
-    padding: 6px 14px;
-    font-size: 14px;
-    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    border-radius: 5px;
     cursor: pointer;
     transition: all 0.15s;
-    margin-left: 8px;
+    margin-left: 6px;
 }
 
 .mini-btn:hover {
     color: var(--text);
     background-color: var(--bg-muted);
+}
+
+.result-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+/* 链接悬浮提示 */
+.jl-link {
+    color: var(--json-string);
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    cursor: pointer;
+    position: relative;
+}
+
+.jl-link:hover {
+    text-decoration-style: solid;
+    color: var(--primary);
+}
+
+.link-popup {
+    display: none;
+    position: absolute;
+    left: 0;
+    top: 100%;
+    z-index: 80;
+    padding: 8px 12px;
+    margin-top: 4px;
+    background-color: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+    white-space: nowrap;
+    font-size: 12px;
+}
+
+.jl-link:hover > .link-popup {
+    display: block;
+}
+
+.link-popup a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.link-popup a:hover {
+    text-decoration: underline;
+}
+
+.link-popup .img-preview {
+    display: block;
+    max-width: 320px;
+    max-height: 200px;
+    margin-top: 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
 }
 
 /* Features */
