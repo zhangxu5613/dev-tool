@@ -181,7 +181,7 @@ body {
 /* Main */
 .main-area {
     flex: 1;
-    padding: 136px 48px 60px;
+    padding: 84px 48px 60px;
     display: flex;
     flex-direction: column;
     gap: 24px;
@@ -190,48 +190,48 @@ body {
 /* Toolbar */
 .toolbar {
     background-color: var(--bg-elev);
-    border-bottom: 1px solid var(--border);
-    padding: 12px 48px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 16px;
     display: flex;
     flex-wrap: wrap;
-    gap: 14px;
+    gap: 8px;
     align-items: center;
-    justify-content: space-between;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
-    position: fixed;
-    top: 69px;
-    left: 0;
-    right: 0;
-    z-index: 40;
+    justify-content: flex-start;
+    box-shadow: var(--shadow);
 }
 
 .toolbar-left, .toolbar-right {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 6px;
     align-items: center;
 }
 
+.toolbar-right {
+    margin-left: auto;
+}
+
 .btn {
-    height: 36px;
-    padding: 0 16px;
+    height: 32px;
+    padding: 0 12px;
     border: 1px solid var(--border);
     background-color: var(--bg-elev);
     color: var(--text);
-    border-radius: 8px;
+    border-radius: 6px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     transition: all 0.15s;
     white-space: nowrap;
 }
 
 .btn svg {
-    width: 14px;
-    height: 14px;
+    width: 13px;
+    height: 13px;
 }
 
 .btn:hover {
@@ -271,13 +271,13 @@ body {
 }
 
 select {
-    height: 36px;
-    padding: 0 10px;
+    height: 32px;
+    padding: 0 8px;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 6px;
     background-color: var(--bg-elev);
     color: var(--text);
-    font-size: 13px;
+    font-size: 12px;
     cursor: pointer;
 }
 
