@@ -86,10 +86,12 @@
             // 检测 HTTP(S) 链接
             if (/^https?:\/\/.+/i.test(v)) {
                 const escaped = escapeHTML(v);
+                const rawUrl = v; // href 用原始 URL，不做 HTML 转义（引号除外）
+                const safeHref = rawUrl.replace(/"/g, '&quot;');
                 const isImg = /\.(png|jpe?g|gif|webp|svg|bmp|ico)(\?.*)?$/i.test(v);
                 const popup = isImg
-                    ? `<span class="link-popup"><a href="${escaped}" target="_blank" rel="noopener">在新窗口打开</a><img class="img-preview" src="${escaped}" alt="预览" /></span>`
-                    : `<span class="link-popup"><a href="${escaped}" target="_blank" rel="noopener">在新窗口打开链接</a></span>`;
+                    ? `<span class="link-popup"><a href="${safeHref}" target="_blank" rel="noopener noreferrer">在新窗口打开</a><img class="img-preview" src="${safeHref}" alt="预览" /></span>`
+                    : `<span class="link-popup"><a href="${safeHref}" target="_blank" rel="noopener noreferrer">在新窗口打开链接</a></span>`;
                 return `<span class="tk-str jl-link">"${escaped}"${popup}</span>`;
             }
             return `<span class="tk-str">"${escapeHTML(v)}"</span>`;

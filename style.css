@@ -656,14 +656,25 @@ select {
     left: 0;
     top: 100%;
     z-index: 80;
-    padding: 8px 12px;
-    margin-top: 4px;
+    padding: 10px 14px;
+    padding-top: 14px;
+    margin-top: 0;
     background-color: var(--bg-elev);
     border: 1px solid var(--border);
     border-radius: 8px;
     box-shadow: 0 6px 20px rgba(0,0,0,0.15);
     white-space: nowrap;
-    font-size: 12px;
+    font-size: 13px;
+}
+
+/* 用 ::before 伪元素填充链接和弹窗之间的空隙，防止鼠标移过去时 hover 丢失 */
+.link-popup::before {
+    content: "";
+    position: absolute;
+    top: -10px;
+    left: 0;
+    right: 0;
+    height: 10px;
 }
 
 .jl-link:hover > .link-popup {
