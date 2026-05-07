@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>在线开发者工具箱 | JSON / Base64 / 时间戳 / 哈希 / 正则</title>
     <meta name="description" content="免费在线开发者工具箱：JSON 格式化、Base64、URL 编解码、时间戳转换、哈希、UUID、正则测试等。" />
-    <link rel="stylesheet" href="style.css?v=37" />
+    <link rel="stylesheet" href="style.css?v=41" />
 </head>
 <body>
     <header class="site-header">
@@ -372,6 +372,36 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- 自由字段时间 → 时间戳 -->
+                <div class="form-block" style="margin-top:18px">
+                    <label>自由输入时间 → Unix 时间戳</label>
+                    <div class="ts-fields-row">
+                        <span class="ts-label">时间</span>
+                        <input type="number" id="tsYear" class="ts-field" placeholder="年" min="1970" max="2099" />
+                        <span class="ts-sep">年</span>
+                        <input type="number" id="tsMonth" class="ts-field sm" placeholder="月" min="1" max="12" />
+                        <span class="ts-sep">月</span>
+                        <input type="number" id="tsDay" class="ts-field sm" placeholder="日" min="1" max="31" />
+                        <span class="ts-sep">日</span>
+                        <input type="number" id="tsHour" class="ts-field sm" placeholder="时" min="0" max="23" />
+                        <span class="ts-sep">时</span>
+                        <input type="number" id="tsMin" class="ts-field sm" placeholder="分" min="0" max="59" />
+                        <span class="ts-sep">分</span>
+                        <input type="number" id="tsSec" class="ts-field sm" placeholder="秒" min="0" max="59" />
+                        <span class="ts-sep">秒</span>
+                        <button class="btn btn-primary" id="tsFieldsConvert">转换 Unix 时间戳</button>
+                        <input type="text" id="tsFieldsResult" class="ts-result" readonly placeholder="结果" />
+                        <select id="tsFieldsUnit">
+                            <option value="s">秒</option>
+                            <option value="ms">毫秒</option>
+                        </select>
+                        <button class="mini-btn" data-copy="#tsFieldsResult">复制</button>
+                    </div>
+                    <div class="ts-fields-row" style="margin-top:8px">
+                        <button class="mini-btn" id="tsFieldsNow">填入当前时间</button>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -584,6 +614,6 @@
     <div id="toast" class="toast" hidden></div>
 
     <script src="https://cdn.jsdelivr.net/npm/spark-md5@3.0.2/spark-md5.min.js"></script>
-    <script src="script.js?v=37"></script>
+    <script src="script.js?v=41"></script>
 </body>
 </html>

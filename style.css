@@ -613,9 +613,9 @@ select {
 }
 
 .mini-btn {
-    border: 1px solid var(--border);
-    background-color: var(--bg-elev);
-    color: var(--text-muted);
+    border: none;
+    background-color: var(--primary);
+    color: #fff;
     padding: 4px 10px;
     font-size: 12px;
     border-radius: 5px;
@@ -625,8 +625,7 @@ select {
 }
 
 .mini-btn:hover {
-    color: var(--text);
-    background-color: var(--bg-muted);
+    background-color: var(--primary-hover);
 }
 
 .result-actions {
@@ -957,18 +956,20 @@ textarea::-webkit-scrollbar-track,
     min-width: 240px;
     height: 42px;
     padding: 0 14px;
-    border: 1px solid var(--border);
+    border: 2px solid var(--border-strong);
     border-radius: 8px;
-    background-color: var(--bg);
+    background-color: var(--bg-elev);
     color: var(--text);
     font-size: 15px;
     font-family: "SF Mono", Menlo, Consolas, monospace;
     outline: none;
-    transition: border-color 0.15s;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .row > input:focus {
     border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .plain-area {
@@ -1078,7 +1079,74 @@ textarea::-webkit-scrollbar-track,
 }
 
 .now-bar .label { color: var(--text-muted); margin-right: 6px; }
-.now-bar .mono { font-size: 16px; margin-right: 8px; }
+.now-bar .mono { font-size: 16px; margin-right: 8px; color: var(--primary); font-weight: 600; }
+
+/* 自由字段时间输入行 */
+.ts-fields-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.ts-label {
+    font-size: 14px;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-right: 4px;
+}
+
+.ts-sep {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.ts-field {
+    width: 80px;
+    height: 36px;
+    padding: 0 10px;
+    border: 2px solid var(--border-strong);
+    border-radius: 6px;
+    background-color: var(--bg-elev);
+    color: var(--text);
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: center;
+    outline: none;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06);
+    transition: border-color 0.15s;
+}
+
+.ts-field.sm { width: 56px; }
+
+.ts-field:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.ts-result {
+    width: 200px;
+    height: 36px;
+    padding: 0 12px;
+    border: 2px solid var(--border-strong);
+    border-radius: 6px;
+    background-color: var(--bg-elev);
+    color: var(--primary);
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 14px;
+    font-weight: 700;
+    text-align: center;
+    outline: none;
+}
+
+/* 去掉 number 输入框的上下箭头 */
+.ts-field::-webkit-inner-spin-button,
+.ts-field::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.ts-field { -moz-appearance: textfield; }
 
 .form-grid {
     display: grid;
@@ -1095,7 +1163,7 @@ textarea::-webkit-scrollbar-track,
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 20px;
-    background-color: var(--bg);
+    background-color: var(--bg-muted);
     display: flex;
     flex-direction: column;
     gap: 14px;

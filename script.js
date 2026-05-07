@@ -986,6 +986,42 @@
         document.getElementById('dtInput').value = v;
     })();
 
+    // ---------- 自由字段时间 → Unix 时间戳 ----------
+    const tsFieldIds = ['tsYear', 'tsMonth', 'tsDay', 'tsHour', 'tsMin', 'tsSec'];
+    const tsFieldsResult = document.getElementById('tsFieldsResult');
+    const tsFieldsUnit = document.getElementById('tsFieldsUnit');
+
+    document.getElementById('tsFieldsNow').addEventListener('click', () => {
+        const d = new Date();
+        document.getElementById('tsYear').value = d.getFullYear();
+        document.getElementById('tsMonth').value = d.getMonth() + 1;
+        document.getElementById('tsDay').value = d.getDate();
+        document.getElementById('tsHour').value = d.getHours();
+        document.getElementById('tsMin').value = d.getMinutes();
+        document.getElementById('tsSec').value = d.getSeconds();
+    });
+
+    document.getElementById('tsFieldsConvert').addEventListener('click', () => {
+        const y = parseInt(document.getElementById('tsYear').value, 10) || 0;
+        const mo = parseInt(document.getElementById('tsMonth').value, 10) || 1;
+        const day = parseInt(document.getElementById('tsDay').value, 10) || 1;
+        const h = parseInt(document.getElementById('tsHour').value, 10) || 0;
+        const mi = parseInt(document.getElementById('tsMin').value, 10) || 0;
+        const s = parseInt(document.getElementById('tsSec').value, 10) || 0;
+
+        if (y < 1970 || y > 2099) { showToast('年份范围 1970-2099', 'error'); return; }
+
+        const d = new Date(y, mo - 1, day, h, mi, s);
+        if (isNaN(d.getTime())) { showToast('日期不合法', 'error'); return; }
+
+        const unit = tsFieldsUnit.value;
+        if (unit === 'ms') {
+            tsFieldsResult.value = d.getTime();
+        } else {
+            tsFieldsResult.value = Math.floor(d.getTime() / 1000);
+        }
+    });
+
     // ================================================================
     // ===================== Base64 =====================
     // ================================================================
