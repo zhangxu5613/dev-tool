@@ -1750,7 +1750,7 @@
 
         const timeoutMs = parseInt(document.getElementById('httpTimeout').value, 10) || 30000;
         const ac = new AbortController();
-        const timer = setTimeout(() => ac.abort(), timeoutMs);
+        const timer = setTimeout(() => ac.abort('timeout'), timeoutMs);
         req.opts.signal = ac.signal;
 
         const t0 = performance.now();
@@ -1787,13 +1787,15 @@
             pushHistory(req.method, req.url, resp.status, ms);
         } catch (err) {
             clearTimeout(timer);
+            const isTimeout = err.name === 'AbortError' && ac.signal.reason === 'timeout';
             httpRespStatus.className = 'resp-status resp-err';
-            httpRespStatus.textContent = err.name === 'AbortError' ? '超时' : '请求失败';
+            httpRespStatus.textContent = isTimeout ? '超时' : '请求失败';
             httpRespRaw.textContent = String(err);
 
-            // 检测是否为 CORS 错误（fetch 被浏览器拦截时 err.message 通常为空或含 "Failed to fetch"）
-            const isCors = !document.getElementById('httpCorsProxy').checked &&
-                (err.message === 'Failed to fetch' || err.message === '' || /network/i.test(err.message));
+            // 检测是否为 CORS 错误（fetch 被浏览器拦截时 err.message 通常为空或含 "Failed to fetch" / "signal is aborted without reason"）
+            const errMsg = err.message || '';
+            const isCors = !isTimeout && !document.getElementById('httpCorsProxy').checked &&
+                (errMsg === 'Failed to fetch' || errMsg === '' || /network/i.test(errMsg) || /signal.*aborted/i.test(errMsg));
 
             if (isCors) {
                 httpRespBody.textContent = '请求失败，可能是 CORS 跨域被拦截。\n\n请切换到「选项」标签，勾选「使用 CORS 代理」后重试。';
@@ -1807,8 +1809,10 @@
                     optsPanel.classList.add('active');
                 }
                 showToast('⚠ 请求被 CORS 拦截，请勾选「使用 CORS 代理」', 'warning');
+            } else if (isTimeout) {
+                httpRespBody.textContent = `请求超时（超过 ${timeoutMs / 1000} 秒）\n\n可在「选项」中调整超时时间。`;
             } else {
-                httpRespBody.textContent = err.message + '\n\n可能原因：\n  · 网络不通 / DNS 解析失败 / 证书错误\n  · 被浏览器或插件拦截\n  · 请求超时';
+                httpRespBody.textContent = (errMsg || '未知错误') + '\n\n可能原因：\n  · 网络不通 / DNS 解析失败 / 证书错误\n  · 被浏览器或插件拦截\n  · 请求超时';
             }
         }
     }
