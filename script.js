@@ -1798,13 +1798,13 @@
             if (isCors) {
                 httpRespBody.textContent = '请求失败，可能是 CORS 跨域被拦截。\n\n请切换到「选项」标签，勾选「使用 CORS 代理」后重试。';
                 // 自动切换到选项 tab
-                const optsTab = document.querySelector('[data-httpsub="opts"]');
+                const optsPanel = document.querySelector('.http-subpanel[data-httpsub="opts"]');
                 const optsBtn = document.querySelector('#httpReqTabs .http-tab[data-httpsub="opts"]');
-                if (optsTab && optsBtn) {
+                if (optsPanel && optsBtn) {
                     document.querySelectorAll('#httpReqTabs .http-tab').forEach(x => x.classList.remove('active'));
                     document.querySelectorAll('.http-subpanel[data-httpsub]').forEach(p => p.classList.remove('active'));
                     optsBtn.classList.add('active');
-                    optsTab.classList.add('active');
+                    optsPanel.classList.add('active');
                 }
                 showToast('⚠ 请求被 CORS 拦截，请勾选「使用 CORS 代理」', 'warning');
             } else {
@@ -1815,18 +1815,21 @@
 
     function renderRespBody() {
         const view = document.querySelector('input[name="respView"]:checked').value;
-        if (!lastRespText) { httpRespBody.textContent = ''; return; }
+        if (!lastRespText) { httpRespBody.textContent = ''; httpRespBody.innerHTML = ''; return; }
         if (view === 'pretty') {
-            // 尝试 JSON 格式化：先看 content-type，也尝试直接解析
             const maybeJson = /json/i.test(lastRespContentType) || /^\s*[\[{]/.test(lastRespText);
             if (maybeJson) {
                 try {
                     const obj = JSON.parse(lastRespText);
-                    httpRespBody.innerHTML = highlightJSON(JSON.stringify(obj, null, 2));
+                    httpRespBody.innerHTML = '';
+                    const frag = document.createDocumentFragment();
+                    renderValueLines(frag, obj, 0, '  ', '', false);
+                    httpRespBody.appendChild(frag);
                     return;
                 } catch {}
             }
         }
+        httpRespBody.innerHTML = '';
         httpRespBody.textContent = lastRespText;
     }
 
