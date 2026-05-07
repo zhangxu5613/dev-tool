@@ -68,6 +68,39 @@
             .replace(/>/g, '&gt;');
     }
 
+    // 通用 JSON 语法高亮（单次扫描 tokenizer，IIFE 顶层定义，各模块都能用）
+    function highlightJSON(s) {
+        const re = /"(?:\\.|[^"\\])*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\b(?:true|false|null)\b|[{}\[\]:,]/g;
+        let out = '';
+        let lastIndex = 0;
+        let m;
+        while ((m = re.exec(s)) !== null) {
+            const match = m[0];
+            const offset = m.index;
+            if (offset > lastIndex) out += escapeHTML(s.slice(lastIndex, offset));
+            lastIndex = offset + match.length;
+            if (match[0] === '"') {
+                const rest = s.slice(lastIndex);
+                if (/^\s*:/.test(rest)) {
+                    out += `<span class="tk-key">${escapeHTML(match)}</span>`;
+                } else {
+                    out += `<span class="tk-str">${escapeHTML(match)}</span>`;
+                }
+            } else if (/^-?\d/.test(match)) {
+                out += `<span class="tk-num">${match}</span>`;
+            } else if (match === 'true' || match === 'false') {
+                out += `<span class="tk-bool">${match}</span>`;
+            } else if (match === 'null') {
+                out += `<span class="tk-null">null</span>`;
+            } else {
+                out += `<span class="tk-punc">${match}</span>`;
+            }
+            if (match.length === 0) re.lastIndex++;
+        }
+        if (lastIndex < s.length) out += escapeHTML(s.slice(lastIndex));
+        return out;
+    }
+
     function countInfo(text) {
         if (!text) return '0 行 · 0 字符';
         const lines = text.split('\n').length;
@@ -1534,6 +1567,17 @@
     let lastRespText = '';
     let lastRespContentType = '';
 
+    // 默认代理地址：当前网页域名的 9090 端口
+    (function initProxyUrl() {
+        const el = document.getElementById('httpProxyUrl');
+        if (!el.value) {
+            const loc = window.location;
+            const proto = loc.protocol; // http: or https:
+            const host = loc.hostname;
+            el.value = `${proto}//${host}:9090/`;
+        }
+    })();
+
     // ---- 子 tab 切换（请求 / 响应） ----
     document.getElementById('httpReqTabs').addEventListener('click', (e) => {
         const b = e.target.closest('.http-tab');
@@ -1636,10 +1680,18 @@
         const params = kvRead(httpParamsEl);
         if (params.length) {
             const u = new URL(url);
-            // 清掉 URL 里同名参数，由 UI 为准
             params.forEach(([k]) => u.searchParams.delete(k));
             params.forEach(([k, v]) => u.searchParams.append(k, v));
             url = u.toString();
+        }
+
+        // CORS 代理
+        const useProxy = document.getElementById('httpCorsProxy').checked;
+        let fetchUrl = url;
+        if (useProxy) {
+            const defaultProxy = `${location.protocol}//${location.hostname}:9090/`;
+            const proxyPrefix = document.getElementById('httpProxyUrl').value.trim() || defaultProxy;
+            fetchUrl = proxyPrefix + url;
         }
 
         const headers = new Headers();
@@ -1657,11 +1709,12 @@
         }
 
         const method = httpMethodEl.value;
+        const useCreds = document.getElementById('httpCreds').checked && !useProxy;
         const opts = {
             method,
             headers,
             cache: document.getElementById('httpNoCache').checked ? 'no-store' : 'default',
-            credentials: document.getElementById('httpCreds').checked ? 'include' : 'same-origin',
+            credentials: useCreds ? 'include' : 'same-origin',
         };
 
         // Body
@@ -1680,7 +1733,7 @@
             }
         }
 
-        return { url, opts, method };
+        return { url, fetchUrl, opts, method };
     }
 
     // ---- 发送请求 ----
@@ -1704,7 +1757,7 @@
 
         const t0 = performance.now();
         try {
-            const resp = await fetch(req.url, req.opts);
+            const resp = await fetch(req.fetchUrl, req.opts);
             clearTimeout(timer);
             const text = await resp.text();
             const ms = Math.round(performance.now() - t0);
@@ -1738,20 +1791,43 @@
             clearTimeout(timer);
             httpRespStatus.className = 'resp-status resp-err';
             httpRespStatus.textContent = err.name === 'AbortError' ? '超时' : '请求失败';
-            httpRespBody.textContent = err.message + '\n\n可能原因：\n  · 目标服务器未返回 CORS 响应头（Access-Control-Allow-Origin）\n  · 网络不通 / DNS 解析失败 / 证书错误\n  · 被浏览器或插件拦截';
             httpRespRaw.textContent = String(err);
+
+            // 检测是否为 CORS 错误（fetch 被浏览器拦截时 err.message 通常为空或含 "Failed to fetch"）
+            const isCors = !document.getElementById('httpCorsProxy').checked &&
+                (err.message === 'Failed to fetch' || err.message === '' || /network/i.test(err.message));
+
+            if (isCors) {
+                httpRespBody.textContent = '请求失败，可能是 CORS 跨域被拦截。\n\n请切换到「选项」标签，勾选「使用 CORS 代理」后重试。';
+                // 自动切换到选项 tab
+                const optsTab = document.querySelector('[data-httpsub="opts"]');
+                const optsBtn = document.querySelector('#httpReqTabs .http-tab[data-httpsub="opts"]');
+                if (optsTab && optsBtn) {
+                    document.querySelectorAll('#httpReqTabs .http-tab').forEach(x => x.classList.remove('active'));
+                    document.querySelectorAll('.http-subpanel[data-httpsub]').forEach(p => p.classList.remove('active'));
+                    optsBtn.classList.add('active');
+                    optsTab.classList.add('active');
+                }
+                showToast('⚠ 请求被 CORS 拦截，请勾选「使用 CORS 代理」', 'warning');
+            } else {
+                httpRespBody.textContent = err.message + '\n\n可能原因：\n  · 网络不通 / DNS 解析失败 / 证书错误\n  · 被浏览器或插件拦截\n  · 请求超时';
+            }
         }
     }
 
     function renderRespBody() {
         const view = document.querySelector('input[name="respView"]:checked').value;
         if (!lastRespText) { httpRespBody.textContent = ''; return; }
-        if (view === 'pretty' && /json/i.test(lastRespContentType)) {
-            try {
-                const obj = JSON.parse(lastRespText);
-                httpRespBody.innerHTML = highlightJSON(JSON.stringify(obj, null, 2));
-                return;
-            } catch {}
+        if (view === 'pretty') {
+            // 尝试 JSON 格式化：先看 content-type，也尝试直接解析
+            const maybeJson = /json/i.test(lastRespContentType) || /^\s*[\[{]/.test(lastRespText);
+            if (maybeJson) {
+                try {
+                    const obj = JSON.parse(lastRespText);
+                    httpRespBody.innerHTML = highlightJSON(JSON.stringify(obj, null, 2));
+                    return;
+                } catch {}
+            }
         }
         httpRespBody.textContent = lastRespText;
     }

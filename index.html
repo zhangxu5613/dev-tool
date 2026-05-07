@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>在线开发者工具箱 | JSON / Base64 / 时间戳 / 哈希 / 正则</title>
     <meta name="description" content="免费在线开发者工具箱：JSON 格式化、Base64、URL 编解码、时间戳转换、哈希、UUID、正则测试等。" />
-    <link rel="stylesheet" href="style.css?v=41" />
+    <link rel="stylesheet" href="style.css?v=45" />
 </head>
 <body>
     <header class="site-header">
@@ -270,15 +270,23 @@
 
                 <!-- 选项 -->
                 <div class="http-subpanel" data-httpsub="opts">
+                    <label class="chk"><input type="checkbox" id="httpCorsProxy" /> 使用 CORS 代理（解决跨域问题）</label>
                     <label class="chk"><input type="checkbox" id="httpCreds" /> 携带 Cookie (credentials: include)</label>
                     <label class="chk"><input type="checkbox" id="httpNoCache" checked /> 禁用缓存 (cache: no-store)</label>
                     <label class="field-inline">
                         超时 (ms)
                         <input type="number" id="httpTimeout" value="30000" min="1000" max="300000" style="width:140px" />
                     </label>
+                    <div class="row" style="margin-top:6px">
+                        <label class="field-inline">
+                            代理地址
+                            <input type="text" id="httpProxyUrl" value="" placeholder="CORS 代理前缀" style="width:340px" />
+                        </label>
+                    </div>
                     <p class="hint-note">
-                        提示：浏览器发请求会受 <b>CORS 同源策略</b>限制。若目标接口未返回允许跨域的响应头，浏览器会拦截响应。
-                        对于调试此类接口，建议：① 在目标接口服务端允许 CORS；② 使用 Postman / curl 桌面工具；③ 走本地代理。
+                        提示：浏览器发请求受 <b>CORS 同源策略</b>限制。勾选"使用 CORS 代理"后，请求会通过第三方代理中转，可解决大部分跨域拦截。<br>
+                        可用代理：<code>https://corsproxy.io/?</code>（默认）、<code>https://api.allorigins.win/raw?url=</code><br>
+                        若需完全私密，建议自建代理或使用 Postman / curl。
                     </p>
                 </div>
 
@@ -614,6 +622,6 @@
     <div id="toast" class="toast" hidden></div>
 
     <script src="https://cdn.jsdelivr.net/npm/spark-md5@3.0.2/spark-md5.min.js"></script>
-    <script src="script.js?v=41"></script>
+    <script src="script.js?v=45"></script>
 </body>
 </html>
