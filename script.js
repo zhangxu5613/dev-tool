@@ -1567,14 +1567,12 @@
     let lastRespText = '';
     let lastRespContentType = '';
 
-    // 默认代理地址：当前网页域名的 9090 端口
+    // 默认代理地址：当前网页同源的 /proxy/ 路径（同源不触发 CORS 预检）
     (function initProxyUrl() {
         const el = document.getElementById('httpProxyUrl');
         if (!el.value) {
             const loc = window.location;
-            const proto = loc.protocol; // http: or https:
-            const host = loc.hostname;
-            el.value = `${proto}//${host}:9090/`;
+            el.value = `${loc.protocol}//${loc.host}/proxy/`;
         }
     })();
 
@@ -1689,7 +1687,7 @@
         const useProxy = document.getElementById('httpCorsProxy').checked;
         let fetchUrl = url;
         if (useProxy) {
-            const defaultProxy = `${location.protocol}//${location.hostname}:9090/`;
+            const defaultProxy = `${location.protocol}//${location.host}/proxy/`;
             const proxyPrefix = document.getElementById('httpProxyUrl').value.trim() || defaultProxy;
             fetchUrl = proxyPrefix + url;
         }
