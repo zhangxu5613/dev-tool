@@ -443,6 +443,29 @@
         if (tolerant) {
             markAutoClosedTails(pretty);
         }
+
+        // 给所有 .fold-body 计算缩进对齐竖线的水平位置
+        applyIndentGuides();
+    }
+
+    // 计算并设置每个 fold-body 的对齐竖线水平位置
+    function applyIndentGuides() {
+        // 测量一个等宽字符的真实像素宽度（用 output 的字体）
+        const probe = document.createElement('span');
+        probe.style.cssText = 'visibility:hidden;position:absolute;white-space:pre;';
+        probe.textContent = ' '.repeat(10);
+        output.appendChild(probe);
+        const charWidth = probe.getBoundingClientRect().width / 10;
+        probe.remove();
+
+        // .jl 行的 padding-left 是 22px，父级 } 在 padding-left + depth*indentUnit 个空格之后
+        // 竖线对齐到父级 } 的字符位置（正上方）
+        output.querySelectorAll('.fold-body').forEach(body => {
+            const depth = parseInt(body.dataset.depth, 10) || 0;
+            const indentUnit = parseInt(body.dataset.indentUnit, 10) || 4;
+            const left = 22 + depth * indentUnit * charWidth;
+            body.style.setProperty('--guide-left', left + 'px');
+        });
     }
 
     // 把格式化后的文本和原始输入对比，找出原输入里缺少的尾部闭合括号行并标红
@@ -525,6 +548,9 @@
             if (canFold) {
                 const body = document.createElement('div');
                 body.className = 'fold-body';
+                // 记录当前层级深度，渲染后用于定位对齐竖线
+                body.dataset.depth = String(depth);
+                body.dataset.indentUnit = String(indentStr === '\t' ? 4 : indentStr.length);
                 keys.forEach((k, idx) => {
                     const isLast = idx === keys.length - 1;
                     const childKeyHTML = t === 'array'

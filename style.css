@@ -473,6 +473,22 @@ select {
     display: none;
 }
 
+/* 缩进对齐竖线：每层 map/list 的内部一条 */
+.output-text .fold-body {
+    position: relative;
+}
+
+.output-text .fold-body::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--guide-left, 22px);
+    width: 1px;
+    background-color: var(--border);
+    pointer-events: none;
+}
+
 /* 容错模式：自动补齐的闭合行标红 */
 .output-text .jl.auto-closed {
     background-color: rgba(239, 68, 68, 0.10);
