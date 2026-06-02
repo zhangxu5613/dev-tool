@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>在线开发者工具箱 | JSON / Base64 / 时间戳 / 哈希 / 正则</title>
     <meta name="description" content="免费在线开发者工具箱：JSON 格式化、Base64、URL 编解码、时间戳转换、哈希、UUID、正则测试等。" />
-    <link rel="stylesheet" href="style.css?v=47" />
+    <link rel="stylesheet" href="style.css?v=52" />
 </head>
 <body>
     <header class="site-header">
@@ -25,6 +25,7 @@
                 <a href="#" class="nav-item" data-tab="hash">哈希计算</a>
                 <a href="#" class="nav-item" data-tab="uuid">UUID 生成</a>
                 <a href="#" class="nav-item" data-tab="regex">正则测试</a>
+                <a href="#" class="nav-item" data-tab="qrcode">二维码生成</a>
             </nav>
             <div class="header-actions">
                 <button id="themeToggle" class="icon-btn" title="切换主题">
@@ -601,6 +602,106 @@
             </div>
         </section>
 
+        <!-- ============ 二维码生成 ============ -->
+        <section class="tab-panel" data-panel="qrcode">
+            <div class="tool-card">
+                <h2 class="tool-title">二维码生成</h2>
+                <p class="tool-desc">输入文本或链接，即时生成二维码，支持下载 PNG 图片。</p>
+                <div class="row" style="margin-top:14px">
+                    <label class="field-inline">
+                        纠错等级
+                        <select id="qrErrorLevel">
+                            <option value="L">L（7%）</option>
+                            <option value="M" selected>M（15%）</option>
+                            <option value="Q">Q（25%）</option>
+                            <option value="H">H（30%）</option>
+                        </select>
+                    </label>
+                    <label class="field-inline">
+                        尺寸
+                        <select id="qrSize">
+                            <option value="128">128px</option>
+                            <option value="200">200px</option>
+                            <option value="256" selected>256px</option>
+                            <option value="320">320px</option>
+                            <option value="512">512px</option>
+                        </select>
+                    </label>
+                    <label class="field-inline">
+                        前景色
+                        <input type="color" id="qrFgColor" value="#000000" style="width:36px;height:28px;padding:1px;cursor:pointer" />
+                    </label>
+                    <label class="field-inline">
+                        背景色
+                        <input type="color" id="qrBgColor" value="#ffffff" style="width:36px;height:28px;padding:1px;cursor:pointer" />
+                    </label>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr auto auto;margin-top:14px;gap:18px;align-items:stretch">
+                    <div class="dual-pane">
+                        <div class="pane-header">
+                            <span class="pane-title">输入文本</span>
+                            <button class="mini-btn" data-copy="#qrInput">复制</button>
+                        </div>
+                        <textarea id="qrInput" class="plain-area" style="min-height:300px" spellcheck="false" placeholder="在此输入要生成二维码的文本或链接，例如：https://example.com"></textarea>
+                    </div>
+                    <div class="dual-actions">
+                        <button class="btn btn-primary" id="qrGenerate">生成 →</button>
+                        <button class="btn" id="qrDownload">下载 PNG</button>
+                        <button class="btn btn-danger" id="qrClear">清空</button>
+                    </div>
+                    <div class="dual-pane" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px">
+                        <div class="pane-header" style="width:100%">
+                            <span class="pane-title">二维码预览</span>
+                        </div>
+                        <div id="qrOutput" style="flex:1;display:flex;align-items:center;justify-content:center;width:600px">
+                            <span class="text-muted" style="color:var(--text-muted)">点击"生成"按钮</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="status-line" id="qrStatus">就绪</div>
+
+                <!-- 二维码解析 -->
+                <div class="sub-section" style="margin-top:24px">
+                    <h2 class="tool-title">二维码解析</h2>
+                    <p class="tool-desc" style="margin-bottom:12px">上传包含二维码的图片，自动识别并提取内容。</p>
+                    <div class="row">
+                        <label class="btn" style="cursor:pointer" id="qrDecodeLabel">
+                            📷 选择图片
+                            <input type="file" id="qrDecodeFile" accept="image/*" style="display:none" />
+                        </label>
+                        <span id="qrDecodeFileName" style="color:var(--text-muted);font-size:13px;margin-left:8px">未选择文件</span>
+                        <button class="btn" id="qrDecodePaste" style="margin-left:8px">📋 粘贴图片</button>
+                        <button class="btn btn-danger" id="qrDecodeClear" style="margin-left:8px">清空</button>
+                    </div>
+                    <div style="display:flex;gap:18px;margin-top:14px">
+                        <div style="flex:0 0 auto;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+                            <div class="pane-header">
+                                <span class="pane-title">图片预览</span>
+                            </div>
+                            <div id="qrDecodePreview" style="display:flex;align-items:center;justify-content:center;width:600px;min-height:300px;overflow:auto;padding:14px">
+                                <span id="qrDecodePlaceholder" style="color:var(--text-muted)">上传或粘贴图片</span>
+                                <canvas id="qrDecodeCanvas" style="max-width:100%;display:none"></canvas>
+                                <div id="qrHtml5Reader" style="display:none"></div>
+                            </div>
+                        </div>
+                        <div style="flex:1;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+                            <div class="pane-header">
+                                <span class="pane-title">解析结果</span>
+                                <button class="mini-btn" data-copy="#qrDecodeText">复制</button>
+                            </div>
+                            <div id="qrDecodeResult" style="min-height:300px;padding:14px;overflow:auto">
+                                <span id="qrDecodeResultPlaceholder" style="color:var(--text-muted)">解析结果将在此显示</span>
+                                <div id="qrDecodeKv" style="display:none">
+                                    <div class="kv"><div><span class="kv-key">内容</span><span class="kv-val mono" id="qrDecodeText" style="word-break:break-all">-</span></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="status-line" id="qrDecodeStatus">就绪</div>
+                </div>
+            </div>
+        </section>
+
         <section class="features">
             <h2>关于本工具箱</h2>
             <div class="feature-grid">
@@ -622,6 +723,9 @@
     <div id="toast" class="toast" hidden></div>
 
     <script src="https://cdn.jsdelivr.net/npm/spark-md5@3.0.2/spark-md5.min.js"></script>
-    <script src="script.js?v=48"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="script.js?v=60"></script>
 </body>
 </html>

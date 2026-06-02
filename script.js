@@ -2266,4 +2266,330 @@
 
     document.getElementById('diffIgnoreOrder').addEventListener('change', runDiff);
     document.getElementById('diffIgnoreCase').addEventListener('change', runDiff);
+
+    // ================================================================
+    // ===================== 二维码生成 =====================
+    // ================================================================
+    const qrInput = document.getElementById('qrInput');
+    const qrOutput = document.getElementById('qrOutput');
+    const qrStatus = document.getElementById('qrStatus');
+    const qrErrorLevel = document.getElementById('qrErrorLevel');
+    const qrSize = document.getElementById('qrSize');
+    const qrFgColor = document.getElementById('qrFgColor');
+    const qrBgColor = document.getElementById('qrBgColor');
+
+    function generateQR() {
+        const text = qrInput.value.trim();
+        if (!text) {
+            qrStatus.textContent = '请输入文本';
+            qrStatus.style.color = 'var(--warning)';
+            return;
+        }
+        const typeNumber = 0; // 自动选择
+        const errorLevel = qrErrorLevel.value;
+        // 将文本转为 UTF-8 字节字符串，确保中文等多字节字符正确编码
+        const utf8Text = unescape(encodeURIComponent(text));
+        let qr;
+        try {
+            qr = qrcode(typeNumber, errorLevel);
+            qr.addData(utf8Text, 'Byte');
+            qr.make();
+        } catch (e) {
+            qrStatus.textContent = '生成失败：文本过长或包含不支持的字符';
+            qrStatus.style.color = 'var(--danger)';
+            return;
+        }
+
+        const size = parseInt(qrSize.value, 10);
+        const moduleCount = qr.getModuleCount();
+        const quietZone = 4; // QR 规范要求至少 4 模块宽的白色静区
+        const totalModules = moduleCount + quietZone * 2;
+        const cellSize = Math.floor(size / totalModules);
+        const realSize = cellSize * totalModules;
+        const offset = cellSize * quietZone; // 二维码内容偏移量
+
+        const canvas = document.createElement('canvas');
+        canvas.width = realSize;
+        canvas.height = realSize;
+        canvas.style.maxWidth = '100%';
+        canvas.style.imageRendering = 'pixelated';
+        canvas.style.border = '1px solid var(--border)';
+        canvas.style.borderRadius = '6px';
+        const ctx = canvas.getContext('2d');
+
+        // 先填充整个背景（包含静区）
+        ctx.fillStyle = qrBgColor.value;
+        ctx.fillRect(0, 0, realSize, realSize);
+
+        for (let row = 0; row < moduleCount; row++) {
+            for (let col = 0; col < moduleCount; col++) {
+                if (qr.isDark(row, col)) {
+                    ctx.fillStyle = qrFgColor.value;
+                    ctx.fillRect(offset + col * cellSize, offset + row * cellSize, cellSize, cellSize);
+                }
+            }
+        }
+
+        qrOutput.innerHTML = '';
+        qrOutput.appendChild(canvas);
+        qrStatus.textContent = `生成成功 · ${moduleCount}×${moduleCount} 模块 · ${realSize}×${realSize}px`;
+        qrStatus.style.color = 'var(--success)';
+    }
+
+    document.getElementById('qrGenerate').addEventListener('click', generateQR);
+    document.getElementById('qrDownload').addEventListener('click', () => {
+        const canvas = qrOutput.querySelector('canvas');
+        if (!canvas) { showToast('请先生成二维码', 'warning'); return; }
+        const a = document.createElement('a');
+        a.download = 'qrcode.png';
+        a.href = canvas.toDataURL('image/png');
+        a.click();
+    });
+    document.getElementById('qrClear').addEventListener('click', () => {
+        document.getElementById('qrInput').value = '';
+        qrOutput.innerHTML = '<span class="text-muted" style="color:var(--text-muted)">点击"生成"按钮</span>';
+        document.getElementById('qrStatus').textContent = '就绪';
+        document.getElementById('qrStatus').style.color = '';
+    });
+
+    // 输入时自动生成（防抖 300ms）
+    let qrDebounce = null;
+    document.getElementById('qrInput').addEventListener('input', () => {
+        clearTimeout(qrDebounce);
+        qrDebounce = setTimeout(() => {
+            const text = qrInput.value.trim();
+            if (text) generateQR();
+        }, 300);
+    });
+
+    // ================================================================
+    // ===================== 二维码解析 =====================
+    // ================================================================
+    const qrDecodeFile = document.getElementById('qrDecodeFile');
+    const qrDecodeFileName = document.getElementById('qrDecodeFileName');
+    const qrDecodeCanvas = document.getElementById('qrDecodeCanvas');
+    const qrDecodeText = document.getElementById('qrDecodeText');
+    const qrDecodeStatus = document.getElementById('qrDecodeStatus');
+    const qrDecodePlaceholder = document.getElementById('qrDecodePlaceholder');
+    const qrDecodeKv = document.getElementById('qrDecodeKv');
+    const qrDecodeResultPlaceholder = document.getElementById('qrDecodeResultPlaceholder');
+
+    // 保存当前解析用的 File 对象，供 html5-qrcode 使用
+    let _currentQrFile = null;
+
+    async function decodeQRFromImage(img) {
+        const canvas = qrDecodeCanvas;
+        const ctx = canvas.getContext('2d');
+        const origW = img.naturalWidth || img.width;
+        const origH = img.naturalHeight || img.height;
+
+        // 显示 canvas，隐藏占位符
+        canvas.style.display = '';
+        qrDecodePlaceholder.style.display = 'none';
+        qrDecodeResultPlaceholder.style.display = 'none';
+        qrDecodeKv.style.display = '';
+
+        // 展示用：将图片绘制到可见 canvas（固定适配尺寸）
+        const displayW = Math.min(Math.max(origW, 200), 600);
+        const displayH = Math.round(origH * displayW / origW);
+        canvas.width = displayW;
+        canvas.height = displayH;
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(img, 0, 0, displayW, displayH);
+
+        let decodedText = null;
+
+        // -------- 辅助：离屏 canvas --------
+        const offCanvas = document.createElement('canvas');
+        const offCtx = offCanvas.getContext('2d');
+
+        // 绘制带白色边框的图到离屏 canvas（解决缺少 quiet zone 的问题）
+        function offDrawWithBorder(targetW, smooth) {
+            const targetH = Math.round(origH * targetW / origW);
+            const border = Math.max(Math.round(targetW * 0.15), 20); // 15% 边框或至少 20px
+            const totalW = targetW + border * 2;
+            const totalH = targetH + border * 2;
+            offCanvas.width = totalW;
+            offCanvas.height = totalH;
+            offCtx.imageSmoothingEnabled = !!smooth;
+            // 填充白色背景（quiet zone）
+            offCtx.fillStyle = '#ffffff';
+            offCtx.fillRect(0, 0, totalW, totalH);
+            // 在中间绘制图片
+            offCtx.drawImage(img, border, border, targetW, targetH);
+            return { w: totalW, h: totalH };
+        }
+
+        function tryJsQR(imageData, w, h) {
+            try {
+                const code = jsQR(imageData.data, w, h, { inversionAttempts: 'attemptBoth' });
+                return code ? code.data : null;
+            } catch (e) { return null; }
+        }
+
+        function binarize(imageData, threshold, invert) {
+            const d = imageData.data;
+            const out = new Uint8ClampedArray(d.length);
+            for (let i = 0; i < d.length; i += 4) {
+                const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+                const val = invert ? (gray < threshold ? 255 : 0) : (gray < threshold ? 0 : 255);
+                out[i] = out[i + 1] = out[i + 2] = val;
+                out[i + 3] = 255;
+            }
+            return new ImageData(out, imageData.width, imageData.height);
+        }
+
+        // -------- 方法1：html5-qrcode (基于 zxing) --------
+        if (!decodedText && typeof Html5Qrcode !== 'undefined' && _currentQrFile) {
+            try {
+                const html5QrCode = new Html5Qrcode('qrHtml5Reader');
+                const result = await html5QrCode.scanFileV2(_currentQrFile, false);
+                if (result && result.decodedText) decodedText = result.decodedText;
+                html5QrCode.clear();
+            } catch (e) { /* 继续 */ }
+        }
+
+        // -------- 方法1b：html5-qrcode + 带边框版本 --------
+        if (!decodedText && typeof Html5Qrcode !== 'undefined') {
+            try {
+                offDrawWithBorder(origW, false);
+                const blob = await new Promise(r => offCanvas.toBlob(r, 'image/png'));
+                if (blob) {
+                    const borderedFile = new File([blob], 'qr_bordered.png', { type: 'image/png' });
+                    const html5QrCode = new Html5Qrcode('qrHtml5Reader');
+                    const result = await html5QrCode.scanFileV2(borderedFile, false);
+                    if (result && result.decodedText) decodedText = result.decodedText;
+                    html5QrCode.clear();
+                }
+            } catch (e) { /* 继续 */ }
+        }
+
+        // -------- 方法2：BarcodeDetector (原生 API) --------
+        if (!decodedText && 'BarcodeDetector' in window) {
+            try {
+                const detector = new BarcodeDetector({ formats: ['qr_code'] });
+                const results = await detector.detect(img);
+                if (results.length > 0 && results[0].rawValue) {
+                    decodedText = results[0].rawValue;
+                }
+            } catch (e) { /* 忽略 */ }
+            // 带边框再试
+            if (!decodedText) {
+                try {
+                    offDrawWithBorder(origW, false);
+                    const detector = new BarcodeDetector({ formats: ['qr_code'] });
+                    const results = await detector.detect(offCanvas);
+                    if (results.length > 0 && results[0].rawValue) {
+                        decodedText = results[0].rawValue;
+                    }
+                } catch (e) { /* 忽略 */ }
+            }
+        }
+
+        // -------- 方法3：jsQR 多尺寸 + 带白色边框 --------
+        if (!decodedText) {
+            const sizes = [origW];
+            if (origW < 300) sizes.push(400, 600);
+            else if (origW < 500) sizes.push(600);
+
+            for (const sz of sizes) {
+                if (decodedText) break;
+                for (const smooth of [false, true]) {
+                    if (decodedText) break;
+                    const { w, h } = offDrawWithBorder(sz, smooth);
+                    const imgData = offCtx.getImageData(0, 0, w, h);
+
+                    decodedText = tryJsQR(imgData, w, h);
+                    if (decodedText) break;
+
+                    for (const thr of [100, 128, 160]) {
+                        decodedText = tryJsQR(binarize(imgData, thr, false), w, h);
+                        if (decodedText) break;
+                        decodedText = tryJsQR(binarize(imgData, thr, true), w, h);
+                        if (decodedText) break;
+                    }
+                }
+            }
+        }
+
+        // -------- 显示结果 --------
+        if (decodedText) {
+            qrDecodeText.textContent = decodedText;
+            qrDecodeStatus.textContent = '解析成功';
+            qrDecodeStatus.style.color = 'var(--success)';
+            if ('BarcodeDetector' in window) {
+                try {
+                    const detector = new BarcodeDetector({ formats: ['qr_code'] });
+                    const results = await detector.detect(canvas);
+                    if (results.length > 0 && results[0].boundingBox) {
+                        const bb = results[0].boundingBox;
+                        ctx.strokeStyle = '#10b981';
+                        ctx.lineWidth = 3;
+                        ctx.strokeRect(bb.x, bb.y, bb.width, bb.height);
+                    }
+                } catch (e) { /* 忽略 */ }
+            }
+        } else {
+            qrDecodeText.textContent = '-';
+            qrDecodeStatus.textContent = '未识别到二维码，请确认图片中包含有效的二维码';
+            qrDecodeStatus.style.color = 'var(--danger)';
+        }
+    }
+
+    function loadQRImageFile(file) {
+        if (!file || !file.type.startsWith('image/')) {
+            qrDecodeStatus.textContent = '请选择图片文件';
+            qrDecodeStatus.style.color = 'var(--warning)';
+            return;
+        }
+        _currentQrFile = file; // 保存 File 供 html5-qrcode 使用
+        qrDecodeFileName.textContent = file.name;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => decodeQRFromImage(img);
+            img.onerror = () => {
+                qrDecodeStatus.textContent = '图片加载失败';
+                qrDecodeStatus.style.color = 'var(--danger)';
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    qrDecodeFile.addEventListener('change', () => {
+        if (qrDecodeFile.files.length > 0) {
+            loadQRImageFile(qrDecodeFile.files[0]);
+        }
+    });
+
+    // 粘贴图片：监听全局 paste 事件
+    document.getElementById('qrDecodePaste').addEventListener('click', () => {
+        qrDecodeStatus.textContent = '请按 Ctrl+V / Cmd+V 粘贴图片...';
+        qrDecodeStatus.style.color = 'var(--text-muted)';
+    });
+    document.addEventListener('paste', (e) => {
+        const items = e.clipboardData && e.clipboardData.items;
+        if (!items) return;
+        for (const item of items) {
+            if (item.type.startsWith('image/')) {
+                e.preventDefault();
+                const file = item.getAsFile();
+                loadQRImageFile(file);
+                return;
+            }
+        }
+    });
+
+    document.getElementById('qrDecodeClear').addEventListener('click', () => {
+        qrDecodeFile.value = '';
+        qrDecodeFileName.textContent = '未选择文件';
+        qrDecodeCanvas.style.display = 'none';
+        qrDecodePlaceholder.style.display = '';
+        qrDecodeResultPlaceholder.style.display = '';
+        qrDecodeKv.style.display = 'none';
+        qrDecodeText.textContent = '-';
+        qrDecodeStatus.textContent = '就绪';
+        qrDecodeStatus.style.color = '';
+    });
 })();
