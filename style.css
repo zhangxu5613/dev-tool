@@ -1081,6 +1081,74 @@ textarea::-webkit-scrollbar-track,
     .dual-actions { flex-direction: row; justify-content: center; }
 }
 
+/* ========== Mobile Responsive ========== */
+@media (max-width: 768px) {
+    .container { padding: 0 16px; }
+
+    .header-inner {
+        flex-wrap: wrap;
+        height: auto;
+        padding: 12px 0;
+        gap: 10px;
+    }
+
+    .nav {
+        order: 3;
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        flex-wrap: nowrap;
+        gap: 4px;
+        padding-bottom: 4px;
+        scrollbar-width: none;
+    }
+    .nav::-webkit-scrollbar { display: none; }
+
+    .nav-item {
+        white-space: nowrap;
+        padding: 6px 12px;
+        font-size: 13px;
+        flex-shrink: 0;
+    }
+
+    .main-area { padding: 76px 12px 40px; }
+
+    .tool-card { padding: 16px 14px; }
+
+    .tool-title { font-size: 20px; }
+
+    /* 双列变单列 */
+    .dual-wrap { grid-template-columns: 1fr; gap: 12px; }
+    .dual-actions { flex-direction: row; justify-content: center; }
+
+    .form-grid { grid-template-columns: 1fr; gap: 12px; }
+
+    .editor-wrap { grid-template-columns: 1fr; min-height: 400px; }
+
+    .diff-inputs { grid-template-columns: 1fr; }
+
+    .now-bar { flex-direction: column; align-items: flex-start; gap: 8px; }
+
+    /* 二维码区域自适应 */
+    .qr-preview-box { width: 100% !important; max-width: 100% !important; }
+    .qr-gen-grid { grid-template-columns: 1fr !important; }
+    .qr-decode-flex { flex-direction: column !important; }
+    .qr-decode-preview { flex: 1 1 auto !important; width: 100% !important; }
+    .qr-decode-preview > div { width: 100% !important; }
+
+    /* 通用 row 换行 */
+    .row { flex-wrap: wrap; gap: 8px; }
+
+    textarea, .plain-area { min-height: 180px !important; font-size: 14px; }
+
+    .field-inline { flex-wrap: wrap; gap: 8px; }
+
+    .icon-btn { width: 40px; height: 40px; }
+
+    .logo { font-size: 16px; }
+    .logo-icon { width: 36px; height: 36px; font-size: 14px; }
+}
+
 /* ========== timestamp now-bar & form-grid ========== */
 .now-bar {
     display: flex;

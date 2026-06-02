@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>在线开发者工具箱 | JSON / Base64 / 时间戳 / 哈希 / 正则</title>
     <meta name="description" content="免费在线开发者工具箱：JSON 格式化、Base64、URL 编解码、时间戳转换、哈希、UUID、正则测试等。" />
-    <link rel="stylesheet" href="style.css?v=52" />
+    <link rel="stylesheet" href="style.css?v=53" />
 </head>
 <body>
     <header class="site-header">
@@ -636,7 +636,7 @@
                         <input type="color" id="qrBgColor" value="#ffffff" style="width:36px;height:28px;padding:1px;cursor:pointer" />
                     </label>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr auto auto;margin-top:14px;gap:18px;align-items:stretch">
+                <div class="qr-gen-grid" style="display:grid;grid-template-columns:1fr auto auto;margin-top:14px;gap:18px;align-items:stretch">
                     <div class="dual-pane">
                         <div class="pane-header">
                             <span class="pane-title">输入文本</span>
@@ -653,7 +653,7 @@
                         <div class="pane-header" style="width:100%">
                             <span class="pane-title">二维码预览</span>
                         </div>
-                        <div id="qrOutput" style="flex:1;display:flex;align-items:center;justify-content:center;width:600px">
+                        <div id="qrOutput" class="qr-preview-box" style="flex:1;display:flex;align-items:center;justify-content:center;width:600px">
                             <span class="text-muted" style="color:var(--text-muted)">点击"生成"按钮</span>
                         </div>
                     </div>
@@ -673,8 +673,8 @@
                         <button class="btn" id="qrDecodePaste" style="margin-left:8px">📋 粘贴图片</button>
                         <button class="btn btn-danger" id="qrDecodeClear" style="margin-left:8px">清空</button>
                     </div>
-                    <div style="display:flex;gap:18px;margin-top:14px">
-                        <div style="flex:0 0 auto;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+                    <div class="qr-decode-flex" style="display:flex;gap:18px;margin-top:14px">
+                        <div class="qr-decode-preview" style="flex:0 0 auto;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:8px;overflow:hidden">
                             <div class="pane-header">
                                 <span class="pane-title">图片预览</span>
                             </div>
