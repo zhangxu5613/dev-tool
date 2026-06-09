@@ -1493,6 +1493,42 @@
         strfmtTimer = setTimeout(doStrFormat, 200);
     });
 
+    // ---- Markdown 预览 ----
+    let _strfmtMdMode = false;
+    const strfmtMdPreview = document.getElementById('strfmtMdPreview');
+    const strfmtMdToggle = document.getElementById('strfmtMdToggle');
+
+    function renderMdPreview() {
+        const text = strfmtRight.value;
+        if (!text) { strfmtMdPreview.innerHTML = '<p style="color:var(--text-muted)">暂无内容</p>'; return; }
+        try {
+            strfmtMdPreview.innerHTML = marked.parse(text, { breaks: true, gfm: true });
+        } catch (e) {
+            strfmtMdPreview.innerHTML = '<p style="color:var(--danger)">Markdown 解析失败</p>';
+        }
+    }
+
+    strfmtMdToggle.addEventListener('click', () => {
+        _strfmtMdMode = !_strfmtMdMode;
+        if (_strfmtMdMode) {
+            renderMdPreview();
+            strfmtRight.style.display = 'none';
+            strfmtMdPreview.hidden = false;
+            strfmtMdToggle.textContent = '纯文本';
+        } else {
+            strfmtRight.style.display = '';
+            strfmtMdPreview.hidden = true;
+            strfmtMdToggle.textContent = 'Markdown 预览';
+        }
+    });
+
+    // 格式化后自动刷新 Markdown 预览
+    const _origDoStrFormat = doStrFormat;
+    doStrFormat = function() {
+        _origDoStrFormat();
+        if (_strfmtMdMode) renderMdPreview();
+    };
+
     // ================================================================
     // ===================== 正则测试 =====================
     // ================================================================
@@ -2022,8 +2058,14 @@
             rightLines.push({ type, indent, text });
             if (type === 'same') stats.same++;
         }
-        function pushLeft(type, indent, text) { leftLines.push({ type, indent, text }); }
-        function pushRight(type, indent, text) { rightLines.push({ type, indent, text }); }
+        function pushLeft(type, indent, text) {
+            leftLines.push({ type, indent, text });
+            rightLines.push({ type: 'pad', indent, text: '' });
+        }
+        function pushRight(type, indent, text) {
+            rightLines.push({ type, indent, text });
+            leftLines.push({ type: 'pad', indent, text: '' });
+        }
 
         // 把一个完整子树 flat 成行：只给一侧用（标记为 del / add / mod）
         function expandFull(v, indent, key, isArrayIdx, lineType, trailingComma, pushFn) {
@@ -2050,11 +2092,10 @@
             // 都是对象
             if (isObj(a) && isObj(b)) {
                 pushBoth('same', indent, `${kp}{`);
-                const leftKeys = Object.keys(a);
-                const rightOnly = Object.keys(b).filter(k => !(k in a));
-                const ordered = [...leftKeys, ...rightOnly];
-                ordered.forEach((k, idx) => {
-                    const last = idx === ordered.length - 1;
+                // 合并两侧 key 并按字母序排序，确保行对齐
+                const allKeys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
+                allKeys.forEach((k, idx) => {
+                    const last = idx === allKeys.length - 1;
                     if (k in a && k in b) {
                         walk(a[k], b[k], indent + 1, k, false, !last);
                     } else if (k in b) {
@@ -2095,8 +2136,13 @@
                 && (a === b || (a !== a && b !== b));
             if (sameVal && !isObj(a) && !isArr(a)) {
                 pushBoth('same', indent, `${kp}${valRepr(a)}${comma}`);
+            } else if (!isObj(a) && !isArr(a) && !isObj(b) && !isArr(b)) {
+                // 两边都是基础值但不同：成对 push，保持行对齐
+                leftLines.push({ type: 'mod', indent, text: `${kp}${valRepr(a)}${comma}` });
+                rightLines.push({ type: 'mod', indent, text: `${kp}${valRepr(b)}${comma}` });
+                stats.mod++;
             } else {
-                // 修改：左侧 mod，右侧 mod（各自展开）
+                // 至少一侧是对象/数组，展开到多行并用 pad 占位
                 if (isObj(a) || isArr(a)) {
                     expandFull(a, indent, key, isArrayIdx, 'mod', trailingComma, pushLeft);
                 } else {
@@ -2180,9 +2226,15 @@
         pv.hidden = true;
     }
 
-    // 点击预览层可回到编辑模式（允许再次修改）
-    diffLeftPreview.addEventListener('click', () => { hidePreview('left'); diffLeftEl.focus(); });
-    diffRightPreview.addEventListener('click', () => { hidePreview('right'); diffRightEl.focus(); });
+    // "编辑"按钮：回到编辑模式（恢复原始输入）
+    document.getElementById('diffEdit').addEventListener('click', () => {
+        hidePreview('left');
+        hidePreview('right');
+        diffLeftEl.value = _diffLeftRaw;
+        diffRightEl.value = _diffRightRaw;
+        diffLeftEl.focus();
+        document.getElementById('diffEdit').style.display = 'none';
+    });
 
     // 用户编辑 textarea 时，隐藏预览层
     diffLeftEl.addEventListener('input', () => hidePreview('left'));
@@ -2191,6 +2243,8 @@
     function runDiff() {
         const lraw = diffLeftEl.value.trim();
         const rraw = diffRightEl.value.trim();
+        _diffLeftRaw = diffLeftEl.value;
+        _diffRightRaw = diffRightEl.value;
         if (!lraw && !rraw) {
             hidePreview('left'); hidePreview('right');
             diffSummary.hidden = true;
@@ -2220,22 +2274,22 @@
 
         const { leftLines, rightLines, stats } = diffBothSides(a, b);
 
-        // 回填 textarea 为格式化后的文本，并展示高亮预览层
-        diffLeftEl.value = linesToText(leftLines);
-        diffRightEl.value = linesToText(rightLines);
-
         diffLeftPreview.className = 'diff-preview side-left';
         diffRightPreview.className = 'diff-preview side-right';
         diffLeftPreview.innerHTML = linesToHTML(leftLines) || '<div class="dline">&nbsp;</div>';
         diffRightPreview.innerHTML = linesToHTML(rightLines) || '<div class="dline">&nbsp;</div>';
         showPreview('left');
         showPreview('right');
+        document.getElementById('diffEdit').style.display = '';
 
         document.getElementById('diffAddCnt').textContent = stats.add;
         document.getElementById('diffDelCnt').textContent = stats.del;
         document.getElementById('diffModCnt').textContent = stats.mod;
         document.getElementById('diffSameCnt').textContent = stats.same;
         diffSummary.hidden = false;
+
+        // 收集差异行，用于导航
+        collectDiffNavItems();
 
         const totalDiff = stats.add + stats.del + stats.mod;
         if (totalDiff === 0) {
@@ -2250,8 +2304,8 @@
     document.getElementById('diffRun').addEventListener('click', runDiff);
     document.getElementById('diffSwap').addEventListener('click', () => {
         hidePreview('left'); hidePreview('right');
-        const tmp = diffLeftEl.value;
-        diffLeftEl.value = diffRightEl.value;
+        const tmp = _diffLeftRaw || diffLeftEl.value;
+        diffLeftEl.value = _diffRightRaw || diffRightEl.value;
         diffRightEl.value = tmp;
         runDiff();
     });
@@ -2262,10 +2316,94 @@
         diffSummary.hidden = true;
         diffStatus.textContent = '就绪';
         diffStatus.style.color = '';
+        _diffNavItems = [];
+        _diffNavIndex = -1;
+        _diffLeftRaw = '';
+        _diffRightRaw = '';
+        document.getElementById('diffNav').style.display = 'none';
+        document.getElementById('diffEdit').style.display = 'none';
+        updateDiffNavIndex();
     });
 
     document.getElementById('diffIgnoreOrder').addEventListener('change', runDiff);
     document.getElementById('diffIgnoreCase').addEventListener('change', runDiff);
+
+    // ---- Diff 导航：上一个/下一个差异 ----
+    let _diffNavIndex = -1;
+    let _diffNavItems = []; // { leftEls, rightEls } 有差异的行组
+    let _diffLeftRaw = '';  // 对比前的原始输入
+    let _diffRightRaw = '';
+
+    function collectDiffNavItems() {
+        _diffNavItems = [];
+        _diffNavIndex = -1;
+        const leftDlines = diffLeftPreview.querySelectorAll('.dline');
+        const rightDlines = diffRightPreview.querySelectorAll('.dline');
+        const len = Math.min(leftDlines.length, rightDlines.length);
+        let inGroup = false;
+        for (let i = 0; i < len; i++) {
+            const lt = leftDlines[i].classList.contains('add') || leftDlines[i].classList.contains('del') || leftDlines[i].classList.contains('mod');
+            const rt = rightDlines[i].classList.contains('add') || rightDlines[i].classList.contains('del') || rightDlines[i].classList.contains('mod');
+            const isDiff = lt || rt;
+            if (isDiff && !inGroup) {
+                // 新差异组的起始行
+                _diffNavItems.push({
+                    leftEls: [leftDlines[i]],
+                    rightEls: [rightDlines[i]]
+                });
+                inGroup = true;
+            } else if (isDiff && inGroup) {
+                // 同一差异组，追加
+                _diffNavItems[_diffNavItems.length - 1].leftEls.push(leftDlines[i]);
+                _diffNavItems[_diffNavItems.length - 1].rightEls.push(rightDlines[i]);
+            } else {
+                // same 行，结束当前组
+                inGroup = false;
+            }
+        }
+        const nav = document.getElementById('diffNav');
+        nav.style.display = _diffNavItems.length > 0 ? 'inline-flex' : 'none';
+        updateDiffNavIndex();
+    }
+
+    function clearDiffNavHighlight() {
+        diffLeftPreview.querySelectorAll('.dline.nav-active').forEach(el => el.classList.remove('nav-active'));
+        diffRightPreview.querySelectorAll('.dline.nav-active').forEach(el => el.classList.remove('nav-active'));
+    }
+
+    function updateDiffNavIndex() {
+        const idx = document.getElementById('diffNavIndex');
+        if (_diffNavItems.length === 0) {
+            idx.textContent = '0 / 0';
+        } else {
+            idx.textContent = `${_diffNavIndex + 1} / ${_diffNavItems.length}`;
+        }
+    }
+
+    function scrollToDiffItem(index) {
+        if (index < 0 || index >= _diffNavItems.length) return;
+        clearDiffNavHighlight();
+        _diffNavIndex = index;
+        const item = _diffNavItems[index];
+        // 只给差异块的第一行加高亮，不再每行都标框
+        item.leftEls[0].classList.add('nav-active');
+        item.rightEls[0].classList.add('nav-active');
+        item.leftEls[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => item.rightEls[0].scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
+        updateDiffNavIndex();
+    }
+
+    document.getElementById('diffPrev').addEventListener('click', () => {
+        if (_diffNavItems.length === 0) return;
+        if (_diffNavIndex <= 0) _diffNavIndex = _diffNavItems.length;
+        scrollToDiffItem(_diffNavIndex - 1);
+    });
+
+    document.getElementById('diffNext').addEventListener('click', () => {
+        if (_diffNavItems.length === 0) return;
+        if (_diffNavIndex >= _diffNavItems.length - 1) _diffNavIndex = -1;
+        scrollToDiffItem(_diffNavIndex + 1);
+    });
 
     // ================================================================
     // ===================== 二维码生成 =====================
