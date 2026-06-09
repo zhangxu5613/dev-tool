@@ -1824,6 +1824,7 @@ textarea::-webkit-scrollbar-track,
 .md-preview a { color: var(--primary); text-decoration: none; }
 .md-preview a:hover { text-decoration: underline; }
 .md-preview hr { border: none; border-top: 1px solid var(--border); margin: 1.5em 0; }
+.md-preview svg[id^="mermaid-"] { max-width: 100%; height: auto; }
 
 /* Curl Import Overlay */
 .curl-import-overlay {

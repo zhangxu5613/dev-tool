@@ -1498,11 +1498,38 @@
     const strfmtMdPreview = document.getElementById('strfmtMdPreview');
     const strfmtMdToggle = document.getElementById('strfmtMdToggle');
 
-    function renderMdPreview() {
+    // 初始化 Mermaid
+    let _mermaidReady = false;
+    try { mermaid.initialize({ startOnLoad: false, theme: 'default' }); _mermaidReady = true; } catch(e) {}
+
+    let _mermaidCounter = 0;
+
+    async function renderMdPreview() {
         const text = strfmtRight.value;
         if (!text) { strfmtMdPreview.innerHTML = '<p style="color:var(--text-muted)">暂无内容</p>'; return; }
         try {
-            strfmtMdPreview.innerHTML = marked.parse(text, { breaks: true, gfm: true });
+            let html = marked.parse(text, { breaks: true, gfm: true });
+            // 渲染 Mermaid 代码块
+            if (_mermaidReady) {
+                const mermaidRegex = /<code class="language-mermaid">([\s\S]*?)<\/code>/g;
+                const matches = [];
+                let m;
+                while ((m = mermaidRegex.exec(html)) !== null) {
+                    matches.push({ full: m[0], code: m[1].replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') });
+                }
+                if (matches.length) {
+                    for (const match of matches) {
+                        const id = `mermaid-${++_mermaidCounter}`;
+                        try {
+                            const { svg } = await mermaid.render(id, match.code);
+                            html = html.replace(match.full, svg);
+                        } catch (e) {
+                            html = html.replace(match.full, `<div style="color:var(--danger);font-size:13px;">Mermaid 渲染失败: ${e.message || e}</div>`);
+                        }
+                    }
+                }
+            }
+            strfmtMdPreview.innerHTML = html;
         } catch (e) {
             strfmtMdPreview.innerHTML = '<p style="color:var(--danger)">Markdown 解析失败</p>';
         }
