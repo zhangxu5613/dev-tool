@@ -2592,4 +2592,15 @@
         qrDecodeStatus.textContent = '就绪';
         qrDecodeStatus.style.color = '';
     });
+
+    // ---------- 回到顶部 ----------
+    document.addEventListener('click', function (e) {
+        if (e.target.closest('#backToTop')) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+            document.body.scrollTop = 0;
+        }
+    });
 })();
