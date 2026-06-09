@@ -1825,6 +1825,41 @@ textarea::-webkit-scrollbar-track,
 .md-preview a:hover { text-decoration: underline; }
 .md-preview hr { border: none; border-top: 1px solid var(--border); margin: 1.5em 0; }
 
+/* Curl Import Overlay */
+.curl-import-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 20px;
+}
+.curl-import-overlay[hidden] {
+    display: none !important;
+}
+.curl-import-box {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    width: 100%;
+    max-width: 640px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+}
+.curl-import-box h3 {
+    margin: 0 0 14px;
+    font-size: 16px;
+    font-weight: 600;
+}
+.curl-import-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 14px;
+}
+
 /* ========== Back to Top ========== */
 #backToTop {
     position: fixed;

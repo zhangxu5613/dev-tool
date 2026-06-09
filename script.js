@@ -1918,6 +1918,126 @@
         if (e.key === 'Enter') { e.preventDefault(); sendRequest(); }
     });
 
+    // ---- 导入 curl ----
+    const curlImportOverlay = document.getElementById('curlImportOverlay');
+    const curlImportInput = document.getElementById('curlImportInput');
+
+    document.getElementById('httpImportCurl').addEventListener('click', () => {
+        curlImportOverlay.hidden = false;
+        curlImportInput.focus();
+    });
+    document.getElementById('curlImportCancel').addEventListener('click', () => {
+        curlImportOverlay.hidden = true;
+    });
+    curlImportOverlay.addEventListener('click', (e) => {
+        if (e.target === curlImportOverlay) curlImportOverlay.hidden = true;
+    });
+
+    function parseCurl(cmd) {
+        const result = { url: '', method: 'GET', headers: [], body: '', bodyType: 'none', params: [] };
+        if (!cmd.trim().startsWith('curl')) return null;
+
+        // 简单 tokenizer：把命令拆成参数列表（处理引号包裹的值）
+        const tokens = [];
+        let i = 0;
+        while (i < cmd.length) {
+            while (i < cmd.length && /\s/.test(cmd[i])) i++;
+            if (i >= cmd.length) break;
+            let quote = null;
+            if (cmd[i] === "'" || cmd[i] === '"') { quote = cmd[i]; i++; }
+            let val = '';
+            while (i < cmd.length) {
+                if (quote) {
+                    if (cmd[i] === quote) { i++; break; }
+                    val += cmd[i];
+                } else {
+                    if (/\s/.test(cmd[i])) break;
+                    val += cmd[i];
+                }
+                i++;
+            }
+            tokens.push(val);
+        }
+
+        let urlFound = false;
+        for (let idx = 0; idx < tokens.length; idx++) {
+            const t = tokens[idx];
+            const low = t.toLowerCase();
+            if (low === '-x' || low === '--request') {
+                result.method = (tokens[++idx] || 'GET').toUpperCase();
+            } else if (low === '-h' || low === '--header') {
+                const h = tokens[++idx] || '';
+                const colon = h.indexOf(':');
+                if (colon > 0) {
+                    const k = h.slice(0, colon).trim();
+                    const v = h.slice(colon + 1).trim();
+                    if (k.toLowerCase() === 'content-type') {
+                        if (v.includes('application/x-www-form-urlencoded')) result.bodyType = 'form';
+                        else if (v.includes('application/json')) result.bodyType = 'json';
+                        else result.bodyType = 'raw';
+                    }
+                    result.headers.push([k, v]);
+                }
+            } else if (low === '-d' || low === '--data' || low === '--data-raw' || low === '--data-binary') {
+                result.body = tokens[++idx] || '';
+                if (!result.bodyType || result.bodyType === 'none') result.bodyType = 'raw';
+            } else if (low === '-b' || low === '--cookie') {
+                const cookieVal = tokens[++idx] || '';
+                result.headers.push(['Cookie', cookieVal]);
+            } else if (low === '-u' || low === '--user') {
+                const auth = tokens[++idx] || '';
+                result.headers.push(['Authorization', 'Basic ' + btoa(auth)]);
+            } else if (low === '--url') {
+                result.url = tokens[++idx] || '';
+                urlFound = true;
+            } else if (!urlFound && !t.startsWith('-') && (t.startsWith('http://') || t.startsWith('https://'))) {
+                result.url = t;
+                urlFound = true;
+            }
+        }
+
+        // 如果 URL 没找到，可能是第一个非选项 token
+        if (!urlFound) {
+            for (const t of tokens) {
+                if (!t.startsWith('-') && (t.startsWith('http://') || t.startsWith('https://'))) {
+                    result.url = t;
+                    break;
+                }
+            }
+        }
+
+        // 从 URL 提取 query params
+        try {
+            const u = new URL(result.url);
+            u.searchParams.forEach((v, k) => result.params.push([k, v]));
+            result.url = u.origin + u.pathname;
+        } catch {}
+
+        return result;
+    }
+
+    document.getElementById('curlImportConfirm').addEventListener('click', () => {
+        const cmd = curlImportInput.value;
+        if (!cmd.trim()) { curlImportOverlay.hidden = true; return; }
+        const parsed = parseCurl(cmd);
+        if (!parsed || !parsed.url) {
+            showToast('无法解析 curl 命令，请检查格式', 'error');
+            return;
+        }
+        httpMethodEl.value = parsed.method;
+        httpUrlEl.value = parsed.url;
+        kvWrite(httpParamsEl, parsed.params);
+        kvWrite(httpHeadersEl, parsed.headers);
+        if (parsed.body) {
+            httpBodyEl.value = parsed.body;
+            if (!parsed.bodyType) parsed.bodyType = 'raw';
+            const r = document.querySelector(`input[name="bodyType"][value="${parsed.bodyType}"]`);
+            if (r) { r.checked = true; r.dispatchEvent(new Event('change')); }
+        }
+        curlImportOverlay.hidden = true;
+        showToast('curl 命令已导入', 'success');
+    });
+
     // ---- 历史记录 ----
     const HIST_KEY = 'http-history-v1';
     function loadHistory() {

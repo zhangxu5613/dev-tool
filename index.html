@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>在线开发者工具箱 | JSON / Base64 / 时间戳 / 哈希 / 正则</title>
     <meta name="description" content="免费在线开发者工具箱：JSON 格式化、Base64、URL 编解码、时间戳转换、哈希、UUID、正则测试等。" />
-    <link rel="stylesheet" href="style.css?v=60" />
+    <link rel="stylesheet" href="style.css?v=61" />
 </head>
 <body>
     <header class="site-header">
@@ -226,6 +226,19 @@
                     <input type="text" id="httpUrl" class="http-url" placeholder="https://api.example.com/users?id=1" />
                     <button class="btn btn-primary" id="httpSend">发送</button>
                     <button class="btn" id="httpSave" title="保存到历史">保存</button>
+                    <button class="btn" id="httpImportCurl" title="从 curl 命令导入">导入 curl</button>
+                </div>
+
+                <!-- curl 导入弹窗 -->
+                <div class="curl-import-overlay" id="curlImportOverlay" hidden>
+                    <div class="curl-import-box">
+                        <h3>粘贴 curl 命令</h3>
+                        <textarea id="curlImportInput" class="plain-area" style="min-height:200px" placeholder='curl -X GET "https://api.example.com/users" -H "Authorization: Bearer xxx"'></textarea>
+                        <div class="curl-import-actions">
+                            <button class="btn btn-primary" id="curlImportConfirm">导入</button>
+                            <button class="btn" id="curlImportCancel">取消</button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- 请求标签页 -->
@@ -741,7 +754,7 @@
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
-    <script src="script.js?v=69"></script>
+    <script src="script.js?v=70"></script>
 
     <!-- 回到顶部按钮 -->
     <button id="backToTop" title="回到顶部" aria-label="回到顶部">
