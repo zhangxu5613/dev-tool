@@ -125,13 +125,13 @@
                 const popup = isImg
                     ? `<span class="link-popup"><a href="${safeHref}" target="_blank" rel="noopener noreferrer">在新窗口打开</a><img class="img-preview" src="${safeHref}" alt="预览" /></span>`
                     : `<span class="link-popup"><a href="${safeHref}" target="_blank" rel="noopener noreferrer">在新窗口打开链接</a></span>`;
-                return `<span class="tk-str jl-link">"${escaped}"${popup}</span>`;
+                return `<span class="jl-value tk-str jl-link">"${escaped}"${popup}</span>`;
             }
-            return `<span class="tk-str">"${escapeHTML(v)}"</span>`;
+            return `<span class="jl-value tk-str">"${escapeHTML(v)}"</span>`;
         }
-        if (t === 'number') return `<span class="tk-num">${v}</span>`;
-        if (t === 'boolean') return `<span class="tk-bool">${v}</span>`;
-        if (t === 'null') return `<span class="tk-null">null</span>`;
+        if (t === 'number') return `<span class="jl-value tk-num">${v}</span>`;
+        if (t === 'boolean') return `<span class="jl-value tk-bool">${v}</span>`;
+        if (t === 'null') return `<span class="jl-value tk-null">null</span>`;
         return '';
     }
 
@@ -513,8 +513,10 @@
      * @param {string} indentStr 单位缩进字符串
      * @param {string} keyPrefixHTML 行首的 key 部分 HTML（如 "key": ）
      * @param {boolean} trailingComma 行末是否加逗号
+     * @param {Array} path 从根到当前元素的路径（用于删除功能）
      */
-    function renderValueLines(parent, value, depth, indentStr, keyPrefixHTML, trailingComma) {
+    function renderValueLines(parent, value, depth, indentStr, keyPrefixHTML, trailingComma, path) {
+        if (!path) path = [];
         const pad = indentStr.repeat(depth);
         const t = typeOf(value);
         const comma = trailingComma ? '<span class="tk-punc">,</span>' : '';
@@ -528,6 +530,7 @@
 
             const wrap = document.createElement('div');
             wrap.className = 'fold-block expanded';
+            wrap.dataset.jsonPath = JSON.stringify(path);
 
             const canFold = keys.length > 0;
 
@@ -542,7 +545,8 @@
                     ? `<span class="fold-inline-btn collapse-btn" title="折叠">-</span>` +
                       `<span class="fold-inline-btn expand-btn" title="展开">+</span>` +
                       `<span class="fold-placeholder"><span class="fold-type">${typeLabel}</span> <span class="tk-punc">${close}</span>${comma}<span class="fold-summary"> // ${summary}</span></span>`
-                    : `<span class="tk-punc">${close}</span>${comma}`);
+                    : `<span class="tk-punc">${close}</span>${comma}`) +
+                `<span class="jl-del-btn" title="删除">✕</span>`;
             wrap.appendChild(headLine);
 
             if (canFold) {
@@ -556,7 +560,7 @@
                     const childKeyHTML = t === 'array'
                         ? ''
                         : `<span class="tk-key">"${escapeHTML(k)}"</span><span class="tk-punc">: </span>`;
-                    renderValueLines(body, value[k], depth + 1, indentStr, childKeyHTML, !isLast);
+                    renderValueLines(body, value[k], depth + 1, indentStr, childKeyHTML, !isLast, [...path, k]);
                 });
                 wrap.appendChild(body);
 
@@ -612,10 +616,120 @@
         } else {
             const line = document.createElement('div');
             line.className = 'jl';
-            line.innerHTML = `<span class="pad">${pad}</span>${keyPrefixHTML}${valueHTML(value)}${comma}`;
+            line.dataset.jsonPath = JSON.stringify(path);
+            line.innerHTML = `<span class="pad">${pad}</span>${keyPrefixHTML}${valueHTML(value)}${comma}<span class="jl-del-btn" title="删除">✕</span>`;
             parent.appendChild(line);
         }
     }
+
+    // 删除按钮事件委托
+    output.addEventListener('click', (e) => {
+        const delBtn = e.target.closest('.jl-del-btn');
+        if (!delBtn) return;
+        e.stopPropagation();
+        // 向上查找有 data-json-path 的元素（基础值在 .jl 上，对象/数组在 .fold-block 上）
+        let el = delBtn.parentElement;
+        while (el && el !== output) {
+            if (el.dataset.jsonPath) break;
+            el = el.parentElement;
+        }
+        if (!el || !el.dataset.jsonPath) return;
+        const pathStr = el.dataset.jsonPath;
+        const path = JSON.parse(pathStr);
+        if (path.length === 0) {
+            showToast('无法删除根元素', 'error');
+            return;
+        }
+        // 从 currentObj 中按 path 删除
+        let obj = currentObj;
+        for (let i = 0; i < path.length - 1; i++) {
+            obj = obj[path[i]];
+        }
+        const lastKey = path[path.length - 1];
+        if (Array.isArray(obj)) {
+            obj.splice(lastKey, 1);
+        } else {
+            delete obj[lastKey];
+        }
+        renderFoldable(currentObj, false);
+        buildTree(currentObj);
+        showToast('已删除', 'success');
+    });
+
+    // 点击 value 进入编辑模式
+    output.addEventListener('click', (e) => {
+        const valueSpan = e.target.closest('.jl-value');
+        if (!valueSpan) return;
+        if (valueSpan.classList.contains('jl-value-editing')) return;
+        if (e.target.closest('.link-popup')) return;
+        const lineEl = valueSpan.closest('.jl');
+        if (!lineEl) return;
+        const pathStr = lineEl.dataset.jsonPath;
+        if (!pathStr) return;
+
+        // 通过 path 从 currentObj 读取原始值
+        const path = JSON.parse(pathStr);
+        if (!path.length) return;
+        let obj = currentObj;
+        for (let i = 0; i < path.length - 1; i++) {
+            obj = obj[path[i]];
+        }
+        const rawVal = obj[path[path.length - 1]];
+        const isString = typeof rawVal === 'string';
+        // 字符串类型：编辑时去掉双引号，保存时自动加回
+        const editStr = isString ? rawVal : JSON.stringify(rawVal);
+
+        // 进入编辑模式：隐藏原始值，插入 input 到旁边
+        valueSpan.classList.add('jl-value-editing');
+        valueSpan.style.display = 'none';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'jl-value-edit';
+        input.value = editStr;
+        // 精确测量文本宽度
+        const _mc = document.createElement('canvas').getContext('2d');
+        _mc.font = '14px monospace';
+        const textW = _mc.measureText(editStr).width;
+        input.style.width = Math.max(60, textW + 24) + 'px';
+        valueSpan.parentNode.insertBefore(input, valueSpan.nextSibling);
+        input.focus();
+        input.select();
+
+        function finishEdit() {
+            const newVal = input.value;
+            let parsed;
+            if (isString) {
+                // 原值是字符串，编辑结果直接作为字符串（不解析）
+                parsed = newVal;
+            } else {
+                // 非字符串类型，尝试 JSON 解析
+                try {
+                    parsed = JSON.parse(newVal.trim());
+                } catch {
+                    parsed = newVal.trim();
+                }
+            }
+            let obj = currentObj;
+            for (let i = 0; i < path.length - 1; i++) {
+                obj = obj[path[i]];
+            }
+            obj[path[path.length - 1]] = parsed;
+            renderFoldable(currentObj, false);
+            buildTree(currentObj);
+        }
+
+        function cancelEdit() {
+            input.remove();
+            valueSpan.classList.remove('jl-value-editing');
+            valueSpan.style.display = '';
+        }
+
+        input.addEventListener('blur', finishEdit);
+        input.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+            if (ev.key === 'Escape') { cancelEdit(); }
+        });
+    });
 
     // ---------- Tree view ----------
     function buildTree(data) {

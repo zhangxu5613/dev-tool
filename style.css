@@ -371,6 +371,56 @@ select {
     padding-left: 22px;
 }
 
+/* 删除按钮 - 默认隐藏，hover 时显示 */
+.output-text .jl-del-btn {
+    display: none;
+    margin-left: 10px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #e53e3e;
+    background: rgba(229,62,62,0.08);
+    border: 1px solid rgba(229,62,62,0.3);
+    border-radius: 4px;
+    padding: 1px 6px;
+    line-height: 1.4;
+    font-weight: 600;
+    transition: background .15s, border-color .15s;
+    vertical-align: middle;
+}
+.output-text .jl-del-btn:hover {
+    background: rgba(229,62,62,0.18);
+    border-color: #e53e3e;
+}
+.output-text .jl:hover > .jl-del-btn,
+.output-text .fold-block:hover > .jl-head > .jl-del-btn {
+    display: inline-block;
+}
+
+/* 可编辑 value hover 效果 */
+.output-text .jl-value {
+    cursor: text;
+    border-radius: 3px;
+    padding: 0 2px;
+    transition: background .15s;
+}
+.output-text .jl:hover .jl-value {
+    background: rgba(99,102,241,0.1);
+    outline: 1px dashed rgba(99,102,241,0.35);
+}
+.output-text .jl-value-edit {
+    font-family: inherit;
+    font-size: inherit;
+    padding: 0 4px;
+    border-radius: 3px;
+    border: 1px solid var(--primary);
+    background: var(--bg-elev);
+    outline: none;
+    min-width: 60px;
+    white-space: normal;
+    vertical-align: middle;
+    box-sizing: border-box;
+}
+
 .output-text .jl .pad {
     white-space: pre;
 }
