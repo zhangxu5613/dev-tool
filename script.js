@@ -1557,6 +1557,31 @@
     };
 
     // ================================================================
+    // ===================== 常用导航 =====================
+    // ================================================================
+    const navSearchInput = document.getElementById('navSearchInput');
+    const navList = document.getElementById('navList');
+    if (navSearchInput) {
+        navSearchInput.addEventListener('input', () => {
+            const q = navSearchInput.value.trim().toLowerCase();
+            const groups = navList.querySelectorAll('.nav-group');
+            groups.forEach(g => {
+                if (!q) { g.style.display = ''; return; }
+                const cards = g.querySelectorAll('.nav-card');
+                let anyMatch = false;
+                cards.forEach(c => {
+                    const name = (c.querySelector('.nav-card-name')?.textContent || '').toLowerCase();
+                    const desc = (c.querySelector('.nav-card-desc')?.textContent || '').toLowerCase();
+                    const match = name.includes(q) || desc.includes(q);
+                    c.style.display = match ? '' : 'none';
+                    if (match) anyMatch = true;
+                });
+                g.style.display = anyMatch ? '' : 'none';
+            });
+        });
+    }
+
+    // ================================================================
     // ===================== 正则测试 =====================
     // ================================================================
     const regexPattern = document.getElementById('regexPattern');

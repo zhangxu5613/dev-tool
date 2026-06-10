@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>在线开发者工具箱 | JSON / Base64 / 时间戳 / 哈希 / 正则</title>
     <meta name="description" content="免费在线开发者工具箱：JSON 格式化、Base64、URL 编解码、时间戳转换、哈希、UUID、正则测试等。" />
-    <link rel="stylesheet" href="style.css?v=62" />
+    <link rel="stylesheet" href="style.css?v=63" />
 </head>
 <body>
     <header class="site-header">
@@ -26,6 +26,7 @@
                 <a href="#" class="nav-item" data-tab="uuid">UUID 生成</a>
                 <a href="#" class="nav-item" data-tab="regex">正则测试</a>
                 <a href="#" class="nav-item" data-tab="qrcode">二维码生成</a>
+                <a href="#" class="nav-item" data-tab="nav">常用导航</a>
             </nav>
             <div class="header-actions">
                 <button id="themeToggle" class="icon-btn" title="切换主题">
@@ -729,6 +730,120 @@
             </div>
         </section>
 
+        <!-- ============ 常用导航 ============ -->
+        <section class="tab-panel" data-panel="nav">
+            <div class="tool-card">
+                <h2 class="tool-title">常用网站 / 工具导航</h2>
+                <p class="tool-desc">开发者常用网站和在线工具速查，点击即可访问。</p>
+
+                <div class="nav-search-bar">
+                    <input type="text" id="navSearchInput" class="plain-area" placeholder="搜索网站名称或描述…" style="min-height:0!important;padding:0 8px!important;border-radius:4px;font-size:13px;height:66px;line-height:66px" />
+                </div>
+
+                <div id="navList" class="nav-list">
+                    <!-- 在线工具 -->
+                    <div class="nav-group" data-group="tools">
+                        <h3 class="nav-group-title">在线工具</h3>
+                        <div class="nav-cards">
+                            <a class="nav-card" href="https://codepen.io" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">CodePen</span><span class="nav-card-desc">在线前端代码演练</span></a>
+                            <a class="nav-card" href="https://codesandbox.io" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">CodeSandbox</span><span class="nav-card-desc">在线全栈开发环境</span></a>
+                            <a class="nav-card" href="https://www.typescriptlang.org/play" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">TS Playground</span><span class="nav-card-desc">TypeScript 在线编译</span></a>
+                            <a class="nav-card" href="https://regex101.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Regex101</span><span class="nav-card-desc">正则表达式调试</span></a>
+                            <a class="nav-card" href="https://transform.tools" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Transform</span><span class="nav-card-desc">代码格式转换工具</span></a>
+                            <a class="nav-card" href="https://www.jsonschema2pojo.org" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">JSONSchema2POJO</span><span class="nav-card-desc">JSON Schema 转代码</span></a>
+                            <a class="nav-card" href="https://browsershots.org" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">BrowserShots</span><span class="nav-card-desc">多浏览器截图测试</span></a>
+                            <a class="nav-card" href="https://www.photopea.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Photopea</span><span class="nav-card-desc">在线 PS 图片编辑</span></a>
+                            <a class="nav-card" href="https://word2md.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Word2MD</span><span class="nav-card-desc">Word 文档转 Markdown</span></a>
+                        </div>
+                    </div>
+
+                    <!-- AI & 大模型 -->
+                    <div class="nav-group" data-group="ai">
+                        <h3 class="nav-group-title">AI & 大模型</h3>
+                        <div class="nav-cards">
+                            <a class="nav-card" href="https://chat.openai.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">ChatGPT</span><span class="nav-card-desc">OpenAI 对话式 AI</span></a>
+                            <a class="nav-card" href="https://www.anthropic.com/claude" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Claude</span><span class="nav-card-desc">Anthropic 智能助手</span></a>
+                            <a class="nav-card" href="https://gemini.google.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Gemini</span><span class="nav-card-desc">Google AI 助手</span></a>
+                            <a class="nav-card" href="https://chatglm.cn" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">智谱清言</span><span class="nav-card-desc">GLM 大模型对话</span></a>
+                            <a class="nav-card" href="https://kimi.moonshot.cn" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Kimi</span><span class="nav-card-desc">月之暗面长文本 AI</span></a>
+                            <a class="nav-card" href="https://www.doubao.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">豆包</span><span class="nav-card-desc">字节跳动 AI 助手</span></a>
+                            <a class="nav-card" href="https://tongyi.aliyun.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">通义千问</span><span class="nav-card-desc">阿里大模型平台</span></a>
+                            <a class="nav-card" href="https://huggingface.co" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">HuggingFace</span><span class="nav-card-desc">模型仓库与 Demo</span></a>
+                        </div>
+                    </div>
+
+                    <!-- 文档 & 社区 -->
+                    <div class="nav-group" data-group="doc">
+                        <h3 class="nav-group-title">文档 & 社区</h3>
+                        <div class="nav-cards">
+                            <a class="nav-card" href="https://developer.mozilla.org" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">MDN</span><span class="nav-card-desc">Web 开发权威文档</span></a>
+                            <a class="nav-card" href="https://stackoverflow.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Stack Overflow</span><span class="nav-card-desc">编程问答社区</span></a>
+                            <a class="nav-card" href="https://github.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">GitHub</span><span class="nav-card-desc">代码托管与协作</span></a>
+                            <a class="nav-card" href="https://devdocs.io" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">DevDocs</span><span class="nav-card-desc">多语言 API 聚合文档</span></a>
+                            <a class="nav-card" href="https://caniuse.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Can I use</span><span class="nav-card-desc">浏览器兼容性查询</span></a>
+                            <a class="nav-card" href="https://www.ruanyifeng.com/blog/" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">阮一峰博客</span><span class="nav-card-desc">技术博客与教程</span></a>
+                            <a class="nav-card" href="https://juejin.cn" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">稀土掘金</span><span class="nav-card-desc">中文技术社区</span></a>
+                            <a class="nav-card" href="https://segmentfault.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">思否</span><span class="nav-card-desc">中文问答社区</span></a>
+                        </div>
+                    </div>
+
+                    <!-- API & 测试 -->
+                    <div class="nav-group" data-group="api">
+                        <h3 class="nav-group-title">API & 测试</h3>
+                        <div class="nav-cards">
+                            <a class="nav-card" href="https://www.postman.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Postman</span><span class="nav-card-desc">API 调试与测试</span></a>
+                            <a class="nav-card" href="https://swagger.io" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Swagger</span><span class="nav-card-desc">API 文档与调试</span></a>
+                            <a class="nav-card" href="https://reqbin.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">ReqBin</span><span class="nav-card-desc">在线 HTTP 请求</span></a>
+                            <a class="nav-card" href="https://httpbin.org" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">httpbin</span><span class="nav-card-desc">HTTP 请求测试服务</span></a>
+                            <a class="nav-card" href="https://mockapi.io" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">MockAPI</span><span class="nav-card-desc">快速创建 Mock API</span></a>
+                            <a class="nav-card" href="https://graphql.org/swapi-graphql" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">GraphQL Playground</span><span class="nav-card-desc">GraphQL 在线调试</span></a>
+                        </div>
+                    </div>
+
+                    <!-- 设计 & 资源 -->
+                    <div class="nav-group" data-group="design">
+                        <h3 class="nav-group-title">设计 & 资源</h3>
+                        <div class="nav-cards">
+                            <a class="nav-card" href="https://www.figma.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Figma</span><span class="nav-card-desc">协作 UI 设计</span></a>
+                            <a class="nav-card" href="https://dribbble.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Dribbble</span><span class="nav-card-desc">设计灵感作品集</span></a>
+                            <a class="nav-card" href="https://undraw.co" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">unDraw</span><span class="nav-card-desc">免费 SVG 插画</span></a>
+                            <a class="nav-card" href="https://icones.js.org" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Icônes</span><span class="nav-card-desc">图标搜索与下载</span></a>
+                            <a class="nav-card" href="https://fonts.google.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Google Fonts</span><span class="nav-card-desc">免费 Web 字体</span></a>
+                            <a class="nav-card" href="https://coolors.co" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Coolors</span><span class="nav-card-desc">配色方案生成器</span></a>
+                            <a class="nav-card" href="https://neumorphism.io" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Neumorphism</span><span class="nav-card-desc">新拟态 CSS 生成</span></a>
+                            <a class="nav-card" href="https://cssgradient.io" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">CSS Gradient</span><span class="nav-card-desc">CSS 渐变生成器</span></a>
+                        </div>
+                    </div>
+
+                    <!-- 云 & DevOps -->
+                    <div class="nav-group" data-group="cloud">
+                        <h3 class="nav-group-title">云 & DevOps</h3>
+                        <div class="nav-cards">
+                            <a class="nav-card" href="https://vercel.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Vercel</span><span class="nav-card-desc">前端部署平台</span></a>
+                            <a class="nav-card" href="https://www.netlify.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Netlify</span><span class="nav-card-desc">静态站点部署</span></a>
+                            <a class="nav-card" href="https://docker.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Docker</span><span class="nav-card-desc">容器化平台</span></a>
+                            <a class="nav-card" href="https://kubernetes.io" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Kubernetes</span><span class="nav-card-desc">容器编排平台</span></a>
+                            <a class="nav-card" href="https://github.com/features/actions" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">GitHub Actions</span><span class="nav-card-desc">CI/CD 自动化</span></a>
+                            <a class="nav-card" href="https://www.cloudflare.com" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Cloudflare</span><span class="nav-card-desc">CDN 与安全防护</span></a>
+                        </div>
+                    </div>
+
+                    <!-- 学习 -->
+                    <div class="nav-group" data-group="learn">
+                        <h3 class="nav-group-title">学习资源</h3>
+                        <div class="nav-cards">
+                            <a class="nav-card" href="https://leetcode.cn" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">LeetCode</span><span class="nav-card-desc">算法刷题</span></a>
+                            <a class="nav-card" href="https://www.freecodecamp.org" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">freeCodeCamp</span><span class="nav-card-desc">免费编程课程</span></a>
+                            <a class="nav-card" href="https://exercism.org" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Exercism</span><span class="nav-card-desc">多语言练习平台</span></a>
+                            <a class="nav-card" href="https://javascript.info" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">javascript.info</span><span class="nav-card-desc">JS 完整教程</span></a>
+                            <a class="nav-card" href="https://roadmap.sh" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">roadmap.sh</span><span class="nav-card-desc">开发者学习路线</span></a>
+                            <a class="nav-card" href="https://github.com/danistefanovic/build-your-own-x" target="_blank" rel="noopener noreferrer"><span class="nav-card-name">Build Your Own X</span><span class="nav-card-desc">造轮子学习指南</span></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <section class="features">
             <h2>关于本工具箱</h2>
             <div class="feature-grid">
@@ -755,7 +870,7 @@
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-    <script src="script.js?v=71"></script>
+    <script src="script.js?v=72"></script>
 
     <!-- 回到顶部按钮 -->
     <button id="backToTop" title="回到顶部" aria-label="回到顶部">
