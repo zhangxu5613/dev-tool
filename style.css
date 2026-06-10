@@ -396,6 +396,18 @@ select {
     display: inline-block;
 }
 
+/* 大数精度提示 */
+.bigint-tip {
+    background: #fffbeb;
+    border: 1px solid #f59e0b;
+    border-radius: 6px;
+    padding: 8px 14px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #92400e;
+    line-height: 1.5;
+}
+
 /* 可编辑 value hover 效果 */
 .output-text .jl-value {
     cursor: text;
@@ -554,6 +566,12 @@ select {
 
 [data-theme="dark"] .output-text .jl.auto-closed {
     background-color: rgba(239, 68, 68, 0.18);
+}
+
+[data-theme="dark"] .bigint-tip {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: #d97706;
+    color: #fbbf24;
 }
 
 .output-text .err-line {

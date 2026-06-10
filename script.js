@@ -109,12 +109,14 @@
 
     function typeOf(v) {
         if (v === null) return 'null';
+        if (isBigIntStr(v)) return 'bigint';
         if (Array.isArray(v)) return 'array';
         return typeof v;
     }
 
     function valueHTML(v) {
         const t = typeOf(v);
+        if (t === 'bigint') return `<span class="jl-value tk-num" title="大整数（超出安全范围）">${escapeHTML(v.v)}</span>`;
         if (t === 'string') {
             // 检测 HTTP(S) 链接
             if (/^https?:\/\/.+/i.test(v)) {
@@ -166,6 +168,78 @@
         autoTimer = setTimeout(() => autoProcess(), 200);
     }
 
+    // 大数字保护：超过 MAX_SAFE_INTEGER 的整数用 BigIntStr 对象保留原始字符串
+    const _BIGINT_TAG = '__BIGINT__';
+    function BigIntStr(s) { return { [_BIGINT_TAG]: true, v: String(s) }; }
+    function isBigIntStr(v) { return v && typeof v === 'object' && v[_BIGINT_TAG] === true; }
+    function hasBigIntInObj(obj) {
+        if (isBigIntStr(obj)) return true;
+        if (Array.isArray(obj)) return obj.some(hasBigIntInObj);
+        if (obj && typeof obj === 'object') return Object.values(obj).some(hasBigIntInObj);
+        return false;
+    }
+
+    function safeJSONParse(text) {
+        // 匹配 JSON 中超出安全整数范围的数字，替换为带标记字符串
+        const placeholder = '"__BIGINT_PLACEHOLDER_';
+        let counter = 0;
+        const bigInts = [];
+        // 先把字符串内容替换为占位，再处理数字，最后恢复字符串
+        const stringMap = [];
+        const withoutStrings = text.replace(/"(?:\\.|[^"\\])*"/g, (m) => {
+            const ph = `"__STR_PH_${stringMap.length}__"`;
+            stringMap.push(m);
+            return ph;
+        });
+        // 在无字符串的文本中替换大数字
+        const replaced = withoutStrings.replace(
+            /-?\d{16,}(\.\d+)?([eE][+-]?\d+)?/g,
+            (match) => {
+                const num = Number(match);
+                if (Number.isFinite(num) && String(num) === match) return match;
+                const key = placeholder + (counter++) + '"';
+                bigInts.push({ key: key.slice(1, -1), raw: match });
+                return key;
+            }
+        );
+        // 恢复字符串
+        let finalText = replaced.replace(/"__STR_PH_(\d+)__"/g, (_, i) => stringMap[+i]);
+        const parsed = JSON.parse(finalText);
+        // 将标记字符串恢复为 BigIntStr 对象
+        if (bigInts.length) {
+            (function walk(obj) {
+                if (Array.isArray(obj)) {
+                    for (let i = 0; i < obj.length; i++) {
+                        if (typeof obj[i] === 'string' && obj[i].startsWith('__BIGINT_PLACEHOLDER_')) {
+                            const found = bigInts.find(b => b.key === obj[i]);
+                            if (found) obj[i] = BigIntStr(found.raw);
+                        } else if (typeof obj[i] === 'object' && obj[i] !== null) {
+                            walk(obj[i]);
+                        }
+                    }
+                } else if (typeof obj === 'object' && obj !== null) {
+                    for (const k of Object.keys(obj)) {
+                        if (typeof obj[k] === 'string' && obj[k].startsWith('__BIGINT_PLACEHOLDER_')) {
+                            const found = bigInts.find(b => b.key === obj[k]);
+                            if (found) obj[k] = BigIntStr(found.raw);
+                        } else if (typeof obj[k] === 'object' && obj[k] !== null) {
+                            walk(obj[k]);
+                        }
+                    }
+                }
+            })(parsed);
+        }
+        return parsed;
+    }
+
+    // 序列化时将 BigIntStr 还原为原始数字字符串
+    function safeJSONStringify(obj, indent) {
+        return JSON.stringify(obj, (key, val) => {
+            if (isBigIntStr(val)) return val.v;
+            return val;
+        }, indent);
+    }
+
     function autoProcess() {
         const raw = input.value.trim();
         if (!raw) {
@@ -177,11 +251,11 @@
             return;
         }
 
-        // 优先尝试标准解析
+        // 优先尝试标准解析（带大数保护）
         let strictOk = false;
         let parsed = null;
         try {
-            parsed = JSON.parse(raw);
+            parsed = safeJSONParse(raw);
             strictOk = true;
         } catch (e) {
             // 标准解析失败，回退到容错解析
@@ -432,11 +506,18 @@
     // ---------- Foldable text view ----------
     function renderFoldable(data, tolerant) {
         output.innerHTML = '';
+        // 大数精度提示
+        if (hasBigIntInObj(data)) {
+            const tip = document.createElement('div');
+            tip.className = 'bigint-tip';
+            tip.innerHTML = '⚠️ JSON 中存在大数，JavaScript 会丢失精度，建议使用 string 存储';
+            output.appendChild(tip);
+        }
         const indent = getIndent();
         const frag = document.createDocumentFragment();
         renderValueLines(frag, data, 0, indent, '', false);
         output.appendChild(frag);
-        const pretty = JSON.stringify(data, null, indent);
+        const pretty = safeJSONStringify(data, indent);
         outputInfo.textContent = countInfo(pretty);
 
         // 容错模式：标记补齐的尾部闭合行
@@ -676,8 +757,9 @@
         }
         const rawVal = obj[path[path.length - 1]];
         const isString = typeof rawVal === 'string';
-        // 字符串类型：编辑时去掉双引号，保存时自动加回
-        const editStr = isString ? rawVal : JSON.stringify(rawVal);
+        const isBigInt = isBigIntStr(rawVal);
+        // 字符串类型：编辑时去掉双引号，保存时自动加回；大整数：显示原始数字
+        const editStr = isString ? rawVal : (isBigInt ? rawVal.v : JSON.stringify(rawVal));
 
         // 进入编辑模式：隐藏原始值，插入 input 到旁边
         valueSpan.classList.add('jl-value-editing');
@@ -699,10 +781,17 @@
             const newVal = input.value;
             let parsed;
             if (isString) {
-                // 原值是字符串，编辑结果直接作为字符串（不解析）
                 parsed = newVal;
+            } else if (isBigInt) {
+                // 大整数：检查编辑后是否仍为大整数
+                const trimmed = newVal.trim();
+                const num = Number(trimmed);
+                if (/^-?\d+$/.test(trimmed) && (String(num) !== trimmed || Math.abs(num) > Number.MAX_SAFE_INTEGER)) {
+                    parsed = BigIntStr(trimmed);
+                } else {
+                    try { parsed = JSON.parse(trimmed); } catch { parsed = trimmed; }
+                }
             } else {
-                // 非字符串类型，尝试 JSON 解析
                 try {
                     parsed = JSON.parse(newVal.trim());
                 } catch {
@@ -855,8 +944,8 @@
         const raw = input.value.trim();
         if (!raw) { showToast('请先输入 JSON'); return; }
         try {
-            const obj = JSON.parse(raw);
-            const min = JSON.stringify(obj);
+            const obj = safeJSONParse(raw);
+            const min = safeJSONStringify(obj);
             input.value = min; // 直接替换到输入框，保持"所见即所得"
             updateGutter();
             autoProcess();
@@ -936,7 +1025,7 @@
     }
 
     function getOutputPlainText() {
-        if (currentObj !== null) return JSON.stringify(currentObj, null, getIndent());
+        if (currentObj !== null) return safeJSONStringify(currentObj, getIndent());
         return output.innerText || '';
     }
 
