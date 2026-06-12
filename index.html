@@ -6,7 +6,7 @@
     <title>在线开发者工具箱 | JSON / Base64 / 时间戳 / 哈希 / 正则</title>
     <meta name="description" content="免费在线开发者工具箱：JSON 格式化、Base64、URL 编解码、时间戳转换、哈希、UUID、正则测试等。" />
     <link rel="icon" type="image/png" href="favicon.png" />
-    <link rel="stylesheet" href="style.css?v=67" />
+    <link rel="stylesheet" href="style.css?v=69" />
 </head>
 <body>
     <header class="site-header">
@@ -185,7 +185,9 @@
                     </div>
                     <div class="dual-actions">
                         <button class="btn btn-primary" id="strfmtFormat">格式化 →</button>
-                        <button class="btn" id="strfmtReverse">← 逆向</button>
+                        <button class="btn" id="strfmtReverse">逆向 →</button>
+                        <button class="btn" id="strfmtJoin">拼接 →</button>
+                        <button class="btn" id="strfmtSplit">切割 →</button>
                         <button class="btn btn-danger" id="strfmtClear">清空</button>
                     </div>
                     <div class="dual-pane">
@@ -204,6 +206,21 @@
                     <label class="chk"><input type="checkbox" id="strfmtTrimLines" /> 去除每行首尾空白</label>
                     <label class="chk"><input type="checkbox" id="strfmtRemoveEmpty" /> 去除连续空行</label>
                     <label class="chk"><input type="checkbox" id="strfmtAuto" checked /> 输入时自动格式化</label>
+                    <span class="options-sep">|</span>
+                    <label class="field-inline">
+                        分隔符
+                        <select id="strJoinSep">
+                            <option value="," selected>,（逗号）</option>
+                            <option value=";">;（分号）</option>
+                            <option value="|">|（竖线）</option>
+                            <option value="_">_（下划线）</option>
+                            <option value="custom">自定义…</option>
+                        </select>
+                    </label>
+                    <input type="text" id="strJoinCustomSep" placeholder="自定义分隔符" style="display:none;width:140px;height:30px;padding:0 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px;outline:none" />
+                    <label class="chk"><input type="checkbox" id="strJoinTrim" checked /> 去首尾空白</label>
+                    <label class="chk"><input type="checkbox" id="strJoinSkipEmpty" checked /> 跳过空行</label>
+                    <label class="chk"><input type="checkbox" id="strJoinQuote" /> 加引号</label>
                 </div>
                 <div class="status-line" id="strfmtStatus">就绪</div>
             </div>
@@ -871,7 +888,7 @@
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-    <script src="script.js?v=82"></script>
+    <script src="script.js?v=85"></script>
 
     <!-- 回到顶部按钮 -->
     <button id="backToTop" title="回到顶部" aria-label="回到顶部">

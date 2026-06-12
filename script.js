@@ -1759,6 +1759,60 @@
         if (_strfmtMdMode) renderMdPreview();
     };
 
+    // ---- 字符串拼接与切割（复用 strfmtLeft / strfmtRight） ----
+    const strJoinSep = document.getElementById('strJoinSep');
+    const strJoinCustomSep = document.getElementById('strJoinCustomSep');
+    const strJoinTrim = document.getElementById('strJoinTrim');
+    const strJoinSkipEmpty = document.getElementById('strJoinSkipEmpty');
+    const strJoinQuote = document.getElementById('strJoinQuote');
+
+    strJoinSep.addEventListener('change', () => {
+        strJoinCustomSep.style.display = strJoinSep.value === 'custom' ? '' : 'none';
+    });
+
+    function getJoinSep() {
+        return strJoinSep.value === 'custom' ? strJoinCustomSep.value : strJoinSep.value;
+    }
+
+    // 拼接：多行 → 单行，用分隔符连接
+    function doStrJoin() {
+        const raw = strfmtLeft.value;
+        if (!raw) { strfmtRight.value = ''; strfmtStatus.textContent = '就绪'; return; }
+        const sep = getJoinSep();
+        let items = raw.split('\n');
+        if (strJoinTrim.checked) items = items.map(s => s.trim());
+        if (strJoinSkipEmpty.checked) items = items.filter(s => s.length > 0);
+        if (strJoinQuote.checked) items = items.map(s => '"' + s.replace(/"/g, '\\"') + '"');
+        const result = items.join(sep);
+        strfmtRight.value = result;
+        strfmtStatus.textContent = `已拼接，${items.length} 项 · ${result.length} 字符 · 分隔符 "${sep}"`;
+        strfmtStatus.style.color = 'var(--success)';
+    }
+
+    // 切割：单行 → 多行，按分隔符拆分
+    function doStrSplit() {
+        const raw = strfmtLeft.value;
+        if (!raw) { strfmtRight.value = ''; strfmtStatus.textContent = '就绪'; return; }
+        const sep = getJoinSep();
+        let items = raw.split(sep);
+        if (strJoinTrim.checked) items = items.map(s => s.trim());
+        if (strJoinSkipEmpty.checked) items = items.filter(s => s.length > 0);
+        // 去除引号包裹
+        if (strJoinQuote.checked) items = items.map(s => {
+            if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+                return s.slice(1, -1);
+            }
+            return s;
+        });
+        const result = items.join('\n');
+        strfmtRight.value = result;
+        strfmtStatus.textContent = `已切割，${items.length} 项 · 分隔符 "${sep}"`;
+        strfmtStatus.style.color = 'var(--success)';
+    }
+
+    document.getElementById('strfmtJoin').addEventListener('click', doStrJoin);
+    document.getElementById('strfmtSplit').addEventListener('click', doStrSplit);
+
     // ================================================================
     // ===================== 常用导航 =====================
     // ================================================================
