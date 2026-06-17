@@ -1,0 +1,2094 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DeepSeek AI 对话</title>
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+    <style>
+        :root {
+            --bg: #f5f7fb;
+            --bg-elev: #ffffff;
+            --bg-muted: #f0f3f8;
+            --border: #e3e8f0;
+            --border-strong: #d0d7e2;
+            --text: #1f2937;
+            --text-muted: #64748b;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+        }
+        [data-theme="dark"] {
+            --bg: #0f172a;
+            --bg-elev: #1e293b;
+            --bg-muted: #172033;
+            --border: #334155;
+            --border-strong: #475569;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --primary: #60a5fa;
+            --primary-hover: #3b82f6;
+            --shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Header */
+        .ds-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 24px;
+            background-color: var(--bg-elev);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .ds-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .ds-header-logo {
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .ds-header-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .ds-header-title {
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .ds-header-title span {
+            color: var(--primary);
+        }
+        .ds-header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .ds-header-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            color: var(--text-muted);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .ds-header-btn:hover {
+            background: var(--bg-muted);
+            color: var(--text);
+            border-color: var(--border-strong);
+        }
+        .ds-header-btn svg { width: 18px; height: 18px; }
+        .ds-header-link {
+            font-size: 13px;
+            color: var(--primary);
+            text-decoration: none;
+            padding: 6px 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        .ds-header-link:hover {
+            background: var(--bg-muted);
+            border-color: var(--primary);
+        }
+
+        /* Tabs */
+        .ds-tabs {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            background: var(--bg-muted);
+            border-radius: 10px;
+            padding: 3px;
+        }
+        .ds-tab-btn {
+            padding: 7px 18px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s;
+            white-space: nowrap;
+            font-family: inherit;
+        }
+        .ds-tab-btn:hover { color: var(--text); }
+        .ds-tab-btn.active {
+            background: var(--bg-elev);
+            color: var(--primary);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            font-weight: 600;
+        }
+
+        /* Tab Content */
+        .ds-tab-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .ds-tab-content[hidden] { display: none; }
+
+        /* Messages */
+        .ds-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+        }
+        .ds-msg {
+            padding: 14px 18px;
+            border-radius: 14px;
+            max-width: 88%;
+            line-height: 1.7;
+            font-size: 15px;
+            word-break: break-word;
+        }
+        .ds-msg.user {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
+            color: #fff;
+        }
+        .ds-msg.assistant {
+            align-self: flex-start;
+            background-color: var(--bg-elev);
+            border: 1px solid var(--border);
+        }
+        .ds-msg.assistant code {
+            background-color: rgba(0,0,0,0.06);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: "SF Mono", Menlo, Consolas, monospace;
+            font-size: 13px;
+        }
+        .ds-msg.assistant pre {
+            background-color: #f6f8fa;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        [data-theme="dark"] .ds-msg.assistant pre {
+            background-color: #1e293b;
+            border-color: #334155;
+        }
+        .ds-msg.assistant pre code {
+            background: none;
+            padding: 0;
+        }
+        .ds-msg.assistant p { margin: 0 0 8px; }
+        .ds-msg.assistant p:last-child { margin-bottom: 0; }
+        .ds-msg.assistant ul, .ds-msg.assistant ol { margin: 4px 0 8px 20px; }
+        .ds-msg.assistant li { margin: 2px 0; }
+        .ds-msg.assistant blockquote {
+            border-left: 3px solid var(--primary);
+            padding: 4px 12px;
+            margin: 6px 0;
+            color: var(--text-muted);
+        }
+        .ds-msg.assistant h1, .ds-msg.assistant h2, .ds-msg.assistant h3 {
+            margin: 12px 0 6px;
+        }
+        .ds-msg.assistant table {
+            border-collapse: collapse;
+            margin: 8px 0;
+            font-size: 14px;
+        }
+        .ds-msg.assistant th, .ds-msg.assistant td {
+            border: 1px solid var(--border);
+            padding: 6px 12px;
+        }
+        .ds-msg.assistant th { background: var(--bg-muted); }
+
+        .ds-msg-role {
+            font-size: 12px;
+            font-weight: 600;
+            opacity: 0.6;
+            margin-bottom: 6px;
+        }
+        .ds-msg.assistant .ds-msg-role { color: var(--primary); }
+
+        .ds-thinking {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-style: italic;
+            margin-bottom: 10px;
+            padding: 10px 14px;
+            background: rgba(37, 99, 235, 0.06);
+            border-radius: 8px;
+            border-left: 3px solid var(--primary);
+        }
+        .ds-loading {
+            align-self: flex-start;
+            color: var(--text-muted);
+            font-size: 14px;
+            padding: 10px 18px;
+        }
+
+        /* Empty state */
+        .ds-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            color: var(--text-muted);
+            gap: 12px;
+        }
+        .ds-empty-icon {
+            font-size: 48px;
+            opacity: 0.3;
+        }
+        .ds-empty-text {
+            font-size: 16px;
+        }
+
+        /* Input area */
+        .ds-input-area {
+            flex-shrink: 0;
+            padding: 0 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+        }
+        .ds-input-box {
+            background-color: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 12px 16px;
+            box-shadow: var(--shadow);
+            transition: border-color 0.2s;
+        }
+        .ds-input-box:focus-within {
+            border-color: var(--primary);
+        }
+        #dsInput {
+            width: 100%;
+            border: none;
+            outline: none;
+            background: transparent;
+            color: var(--text);
+            font-size: 15px;
+            line-height: 1.6;
+            resize: none;
+            min-height: 24px;
+            max-height: 160px;
+            font-family: inherit;
+        }
+        #dsInput::placeholder { color: var(--text-muted); }
+        .ds-input-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 8px;
+        }
+        .ds-options {
+            display: flex;
+            gap: 8px;
+        }
+        .ds-opt {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 14px;
+            border: 1px solid #bfdbfe;
+            border-radius: 20px;
+            background: #eff6ff;
+            color: #2563eb;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .ds-opt:hover { background: #dbeafe; }
+        .ds-opt.active {
+            background: #2563eb;
+            color: #fff;
+            border-color: #2563eb;
+        }
+        .ds-opt svg { width: 14px; height: 14px; }
+        [data-theme="dark"] .ds-opt {
+            background: rgba(37, 99, 235, 0.15);
+            border-color: rgba(96, 165, 250, 0.35);
+            color: #60a5fa;
+        }
+        [data-theme="dark"] .ds-opt:hover { background: rgba(37, 99, 235, 0.25); }
+        [data-theme="dark"] .ds-opt.active {
+            background: #2563eb;
+            color: #fff;
+            border-color: #2563eb;
+        }
+        .ds-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .ds-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: var(--bg-muted);
+            color: var(--text-muted);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .ds-btn:hover {
+            background: var(--border-strong);
+            color: var(--text);
+        }
+        .ds-btn.send {
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
+            color: #fff;
+        }
+        .ds-btn.send:hover {
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+            transform: scale(1.05);
+        }
+        .ds-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+        .ds-btn svg { width: 18px; height: 18px; }
+        .ds-btn.send svg { width: 16px; height: 16px; }
+        .ds-api-bar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+        }
+        #dsApiKey {
+            flex: 1;
+            max-width: 380px;
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        #dsApiKey:focus { border-color: var(--primary); }
+        #dsModel {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 13px;
+            cursor: pointer;
+            outline: none;
+        }
+        #dsModel:focus { border-color: var(--primary); }
+
+        /* Attachments */
+        .ds-attach-area {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            padding: 0 0 4px;
+        }
+        .ds-attach-item {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px 4px 6px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--bg-muted);
+            font-size: 12px;
+            color: var(--text);
+            max-width: 180px;
+            overflow: hidden;
+        }
+        .ds-attach-item img {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+        .ds-attach-item .ds-attach-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .ds-attach-remove {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: var(--bg-elev);
+            color: var(--text-muted);
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+        .ds-attach-remove:hover {
+            background: #ef4444;
+            color: #fff;
+            border-color: #ef4444;
+        }
+        .ds-msg-attach {
+            margin-bottom: 6px;
+        }
+        .ds-msg-attach img {
+            max-width: 240px;
+            max-height: 180px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .ds-msg-attach-file {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 8px;
+            font-size: 13px;
+        }
+        .ds-msg.assistant .ds-msg-attach-file {
+            background: var(--bg-muted);
+        }
+
+        /* Toast */
+        .ds-toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-80px);
+            padding: 10px 24px;
+            border-radius: 10px;
+            font-size: 14px;
+            color: #fff;
+            z-index: 9999;
+            transition: transform 0.3s ease;
+            pointer-events: none;
+        }
+        .ds-toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+        .ds-toast.error { background: #ef4444; }
+        .ds-toast.warning { background: #f59e0b; color: #1f2937; }
+        .ds-toast.success { background: #10b981; }
+
+        /* ── Games ── */
+        .ds-games-wrap {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 16px;
+            overflow-y: auto;
+            gap: 14px;
+        }
+        .ds-game-selector {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .ds-game-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 12px 18px;
+            border: 2px solid var(--border);
+            border-radius: 14px;
+            background: var(--bg-elev);
+            cursor: pointer;
+            transition: all 0.2s;
+            min-width: 90px;
+            user-select: none;
+        }
+        .ds-game-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+        .ds-game-card.active {
+            border-color: var(--primary);
+            background: rgba(37,99,235,0.06);
+        }
+        .ds-game-icon { font-size: 30px; line-height: 1; }
+        .ds-game-name { font-size: 12px; font-weight: 600; color: var(--text); }
+        .ds-game-canvas-wrap {
+            position: relative;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            background: #0a0a0f;
+            box-shadow: 0 0 40px rgba(37,99,235,0.1), inset 0 0 60px rgba(0,0,0,0.5);
+            max-width: 100%;
+        }
+        .ds-game-canvas-wrap canvas {
+            display: block;
+            max-width: 100%;
+            height: auto;
+        }
+        .ds-game-hud {
+            display: flex;
+            gap: 24px;
+            font-size: 14px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        .ds-game-hud span { color: var(--primary); font-weight: 700; }
+        .ds-game-hint {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-align: center;
+            opacity: 0.7;
+        }
+        .ds-game-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.82);
+            color: #fff;
+            gap: 8px;
+            font-size: 15px;
+            z-index: 2;
+        }
+        .ds-game-overlay .ds-game-overlay-title {
+            font-size: 22px;
+            font-weight: 700;
+        }
+        .ds-game-overlay button {
+            margin-top: 6px;
+            padding: 10px 28px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .ds-game-overlay button:hover {
+            transform: scale(1.06);
+            box-shadow: 0 4px 20px rgba(37,99,235,0.5);
+        }
+
+        /* Difficulty selector */
+        .ds-difficulty-selector {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .ds-diff-btn {
+            padding: 7px 16px;
+            border: 2px solid var(--border);
+            border-radius: 20px;
+            background: var(--bg-elev);
+            color: var(--text-muted);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            user-select: none;
+        }
+        .ds-diff-btn:hover {
+            border-color: var(--primary);
+            color: var(--text);
+        }
+        .ds-diff-btn.active {
+            border-color: var(--primary);
+            background: rgba(37,99,235,0.08);
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        /* Mobile touch controls */
+        .ds-touch-controls {
+            display: none;
+            gap: 6px;
+            margin-top: 4px;
+        }
+        .ds-touch-row {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+        }
+        .ds-touch-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            border: 2px solid var(--border);
+            background: var(--bg-elev);
+            color: var(--text);
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        .ds-touch-btn:active {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+
+        @media (max-width: 768px) {
+            .ds-header { padding: 8px 10px; }
+            .ds-header-title { font-size: 15px; }
+            .ds-tab-btn { padding: 5px 12px; font-size: 12px; }
+            .ds-messages { padding: 12px 8px; }
+            .ds-input-area { padding: 0 8px 14px; }
+            .ds-api-bar { flex-wrap: wrap; }
+            #dsApiKey { max-width: none; width: 100%; }
+            .ds-game-selector { gap: 6px; }
+            .ds-game-card { padding: 8px 12px; min-width: 70px; }
+            .ds-game-icon { font-size: 24px; }
+            .ds-touch-controls { display: flex; flex-direction: column; }
+            .ds-game-hint { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <header class="ds-header">
+        <div class="ds-header-left">
+            <div class="ds-header-logo"><img src="favicon.png" alt="icon" /></div>
+            <div class="ds-header-title"><span>DeepSeek</span> AI 对话</div>
+        </div>
+        <div class="ds-tabs">
+            <button class="ds-tab-btn active" data-tab="chat">💬 AI 对话</button>
+            <button class="ds-tab-btn" data-tab="games">🕹️ 复古小游戏</button>
+        </div>
+        <div class="ds-header-right">
+            <a href="/" class="ds-header-link">← 工具箱</a>
+            <button class="ds-header-btn" id="themeToggle" title="切换主题">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </button>
+            <button class="ds-header-btn" id="clearBtn" title="清空对话">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Chat Tab -->
+    <div class="ds-tab-content" id="tab-chat">
+        <div class="ds-messages" id="dsMessages">
+            <div class="ds-empty" id="dsEmpty">
+                <div class="ds-empty-icon">💬</div>
+                <div class="ds-empty-text">给 DeepSeek 发送消息开始对话</div>
+            </div>
+        </div>
+
+        <div class="ds-input-area">
+            <div class="ds-attach-area" id="dsAttachArea"></div>
+            <div class="ds-input-box">
+                <textarea id="dsInput" placeholder="给 DeepSeek 发送消息" rows="1"></textarea>
+                <div class="ds-input-footer">
+                    <div class="ds-options">
+                        <button class="ds-opt" id="dsReasonBtn" type="button">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                            深度思考
+                        </button>
+                    </div>
+                    <div class="ds-actions">
+                        <button class="ds-btn" id="dsUploadBtn" type="button" title="上传附件">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                        </button>
+                        <button class="ds-btn send" id="dsSendBtn" type="button" title="发送">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="ds-api-bar">
+                <input type="password" id="dsApiKey" placeholder="DeepSeek API Key（本地存储）" />
+                <select id="dsModel">
+                    <option value="deepseek-v4-pro">deepseek-v4-pro</option>
+                    <option value="deepseek-v4-flash">deepseek-v4-flash</option>
+                </select>
+            </div>
+        </div>
+        <input type="file" id="dsFileInput" hidden multiple accept="image/*,.txt,.md,.json,.csv,.xml,.html,.css,.js,.ts,.py,.java,.go,.rs,.c,.cpp,.h,.yaml,.yml,.toml,.ini,.cfg,.log,.sql,.sh,.bat" />
+    </div>
+
+    <!-- Games Tab -->
+    <div class="ds-tab-content" id="tab-games" hidden>
+        <div class="ds-games-wrap">
+            <div class="ds-game-selector" id="gameSelector">
+                <div class="ds-game-card active" data-game="snake">
+                    <div class="ds-game-icon">🐍</div>
+                    <div class="ds-game-name">贪吃蛇</div>
+                </div>
+                <div class="ds-game-card" data-game="tetris">
+                    <div class="ds-game-icon">🧱</div>
+                    <div class="ds-game-name">俄罗斯方块</div>
+                </div>
+                <div class="ds-game-card" data-game="breakout">
+                    <div class="ds-game-icon">🏓</div>
+                    <div class="ds-game-name">打砖块</div>
+                </div>
+            </div>
+            <div class="ds-difficulty-selector" id="difficultySelector">
+                <button class="ds-diff-btn" data-diff="easy">😊 简单</button>
+                <button class="ds-diff-btn active" data-diff="medium">⚡ 中等</button>
+                <button class="ds-diff-btn" data-diff="hard">💀 困难</button>
+            </div>
+            <div class="ds-game-canvas-wrap" id="gameCanvasWrap">
+                <canvas id="gameCanvas"></canvas>
+            </div>
+            <div class="ds-game-hud">
+                <div>得分: <span id="gameScore">0</span></div>
+                <div id="gameHudExtra"></div>
+            </div>
+            <div class="ds-game-hint" id="gameHint"></div>
+            <div class="ds-touch-controls" id="touchControls">
+                <div class="ds-touch-row">
+                    <button class="ds-touch-btn" data-key="ArrowUp">▲</button>
+                </div>
+                <div class="ds-touch-row">
+                    <button class="ds-touch-btn" data-key="ArrowLeft">◀</button>
+                    <button class="ds-touch-btn" data-key="ArrowDown">▼</button>
+                    <button class="ds-touch-btn" data-key="ArrowRight">▶</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="ds-toast" id="dsToast"></div>
+
+    <script>
+    (function () {
+        'use strict';
+
+        // ── DOM refs ──
+        const dsMessages = document.getElementById('dsMessages');
+        const dsEmpty = document.getElementById('dsEmpty');
+        const dsInput = document.getElementById('dsInput');
+        const dsSendBtn = document.getElementById('dsSendBtn');
+        const dsReasonBtn = document.getElementById('dsReasonBtn');
+        const dsApiKey = document.getElementById('dsApiKey');
+        const dsModel = document.getElementById('dsModel');
+        const dsToast = document.getElementById('dsToast');
+        const dsUploadBtn = document.getElementById('dsUploadBtn');
+        const dsFileInput = document.getElementById('dsFileInput');
+        const dsAttachArea = document.getElementById('dsAttachArea');
+
+        // Theme
+        const themeKey = 'json-tool-theme';
+        const savedTheme = localStorage.getItem(themeKey);
+        if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', cur);
+            localStorage.setItem(themeKey, cur);
+        });
+
+        // Toast
+        function showToast(msg, type) {
+            dsToast.textContent = msg;
+            dsToast.className = 'ds-toast ' + (type || '');
+            requestAnimationFrame(() => dsToast.classList.add('show'));
+            clearTimeout(showToast._t);
+            showToast._t = setTimeout(() => dsToast.classList.remove('show'), 3000);
+        }
+
+        // API Key persistence
+        const apiKeyKey = 'ds-api-key';
+        const savedKey = localStorage.getItem(apiKeyKey);
+        if (savedKey) dsApiKey.value = savedKey;
+        dsApiKey.addEventListener('change', () => {
+            localStorage.setItem(apiKeyKey, dsApiKey.value.trim());
+        });
+
+        let messages = [];
+        let isReasoning = false;
+        let isSending = false;
+        let attachments = []; // { name, type, data (base64), isImage }
+
+        // Reasoning toggle
+        dsReasonBtn.addEventListener('click', () => {
+            isReasoning = !isReasoning;
+            dsReasonBtn.classList.toggle('active', isReasoning);
+            if (isReasoning) {
+                dsModel.value = 'deepseek-v4-pro';
+            } else if (dsModel.value === 'deepseek-v4-pro') {
+                dsModel.value = 'deepseek-v4-flash';
+            }
+        });
+        dsModel.addEventListener('change', () => {
+            if (dsModel.value === 'deepseek-v4-pro') {
+                isReasoning = true;
+                dsReasonBtn.classList.add('active');
+            } else {
+                isReasoning = false;
+                dsReasonBtn.classList.remove('active');
+            }
+        });
+
+        // File upload
+        dsUploadBtn.addEventListener('click', () => dsFileInput.click());
+        dsFileInput.addEventListener('change', () => {
+            for (const file of dsFileInput.files) {
+                if (attachments.length >= 5) {
+                    showToast('最多上传 5 个附件', 'warning');
+                    break;
+                }
+                const isImage = file.type.startsWith('image/');
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    attachments.push({
+                        name: file.name,
+                        type: file.type,
+                        data: e.target.result,
+                        isImage: isImage
+                    });
+                    renderAttachments();
+                };
+                reader.readAsDataURL(file);
+            }
+            dsFileInput.value = '';
+        });
+
+        function renderAttachments() {
+            dsAttachArea.innerHTML = '';
+            attachments.forEach((att, i) => {
+                const div = document.createElement('div');
+                div.className = 'ds-attach-item';
+                if (att.isImage) {
+                    div.innerHTML = '<img src="' + att.data + '" alt="preview" /><span class="ds-attach-name">' + escapeHTML(att.name) + '</span>';
+                } else {
+                    div.innerHTML = '<span class="ds-attach-name">📄 ' + escapeHTML(att.name) + '</span>';
+                }
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'ds-attach-remove';
+                removeBtn.textContent = '×';
+                removeBtn.addEventListener('click', () => {
+                    attachments.splice(i, 1);
+                    renderAttachments();
+                });
+                div.appendChild(removeBtn);
+                dsAttachArea.appendChild(div);
+            });
+        }
+
+        // Drag & drop
+        dsInput.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+        dsInput.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            for (const file of e.dataTransfer.files) {
+                if (attachments.length >= 5) {
+                    showToast('最多上传 5 个附件', 'warning');
+                    break;
+                }
+                const isImage = file.type.startsWith('image/');
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    attachments.push({
+                        name: file.name,
+                        type: file.type,
+                        data: ev.target.result,
+                        isImage: isImage
+                    });
+                    renderAttachments();
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Clear
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            messages = [];
+            attachments = [];
+            renderAttachments();
+            dsMessages.innerHTML = '';
+            dsMessages.appendChild(dsEmpty);
+            dsEmpty.style.display = '';
+        });
+
+        function escapeHTML(s) {
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function appendMsg(role, content, thinking, attachList) {
+            if (dsEmpty.style.display !== 'none') dsEmpty.style.display = 'none';
+
+            const div = document.createElement('div');
+            div.className = 'ds-msg ' + role;
+            const roleLabel = role === 'user' ? '你' : 'DeepSeek';
+            let html = '<div class="ds-msg-role">' + escapeHTML(roleLabel) + '</div><div class="ds-msg-content">';
+            if (thinking) {
+                html += '<div class="ds-thinking">🤔 思考中…<br/>' + escapeHTML(thinking).replace(/\n/g, '<br>') + '</div>';
+            }
+            if (attachList && attachList.length) {
+                html += '<div class="ds-msg-attach">';
+                for (const att of attachList) {
+                    if (att.isImage) {
+                        html += '<img src="' + att.data + '" alt="' + escapeHTML(att.name) + '" onclick="window.open(this.src)" />';
+                    } else {
+                        html += '<span class="ds-msg-attach-file">📄 ' + escapeHTML(att.name) + '</span>';
+                    }
+                }
+                html += '</div>';
+            }
+            if (role === 'assistant') {
+                html += marked.parse(content || '');
+            } else {
+                html += escapeHTML(content).replace(/\n/g, '<br>');
+            }
+            html += '</div>';
+            div.innerHTML = html;
+            dsMessages.appendChild(div);
+            dsMessages.scrollTop = dsMessages.scrollHeight;
+            return div;
+        }
+
+        function showLoading() {
+            const div = document.createElement('div');
+            div.className = 'ds-loading';
+            div.id = 'dsLoading';
+            div.textContent = 'DeepSeek 正在思考…';
+            dsMessages.appendChild(div);
+            dsMessages.scrollTop = dsMessages.scrollHeight;
+        }
+
+        function removeLoading() {
+            const el = document.getElementById('dsLoading');
+            if (el) el.remove();
+        }
+
+        async function send() {
+            const text = dsInput.value.trim();
+            if ((!text && !attachments.length) || isSending) return;
+            const apiKey = dsApiKey.value.trim();
+            if (!apiKey) {
+                showToast('请先填写 DeepSeek API Key', 'warning');
+                dsApiKey.focus();
+                return;
+            }
+
+            isSending = true;
+            dsSendBtn.disabled = true;
+            dsInput.value = '';
+            dsInput.style.height = 'auto';
+
+            const currentAttachments = [...attachments];
+            attachments = [];
+            renderAttachments();
+
+            let msgContent;
+            if (currentAttachments.length > 0) {
+                const parts = [];
+                if (text) parts.push({ type: 'text', text: text });
+                for (const att of currentAttachments) {
+                    if (att.isImage) {
+                        parts.push({ type: 'image', image: att.data });
+                    } else {
+                        const base64Data = att.data.split(',')[1];
+                        let fileContent;
+                        try {
+                            fileContent = atob(base64Data);
+                        } catch (_) {
+                            fileContent = '[binary file]';
+                        }
+                        parts.push({ type: 'text', text: '📎 文件 ' + att.name + ' 的内容：\n' + fileContent });
+                    }
+                }
+                msgContent = parts;
+            } else {
+                msgContent = text;
+            }
+
+            messages.push({ role: 'user', content: msgContent });
+            appendMsg('user', text || '(附件)', null, currentAttachments);
+            showLoading();
+
+            const model = dsModel.value;
+            try {
+                const res = await fetch('https://api.deepseek.com/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + apiKey
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: messages,
+                        stream: true
+                    })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error?.message || 'HTTP ' + res.status);
+                }
+
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let content = '';
+                let thinking = '';
+                let msgDiv = null;
+                let hasThinking = false;
+
+                removeLoading();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+                    for (const line of lines) {
+                        const trimmed = line.trim();
+                        if (!trimmed || !trimmed.startsWith('data:')) continue;
+                        const data = trimmed.slice(5).trim();
+                        if (data === '[DONE]') continue;
+                        try {
+                            const parsed = JSON.parse(data);
+                            const delta = parsed.choices?.[0]?.delta;
+                            if (!delta) continue;
+                            if (delta.reasoning_content) {
+                                thinking += delta.reasoning_content;
+                                hasThinking = true;
+                            }
+                            if (delta.content) {
+                                content += delta.content;
+                            }
+                            if (!msgDiv && (content || thinking)) {
+                                msgDiv = appendMsg('assistant', content, hasThinking ? thinking : '');
+                            } else if (msgDiv) {
+                                const contentEl = msgDiv.querySelector('.ds-msg-content');
+                                let html = '';
+                                if (hasThinking) {
+                                    html += '<div class="ds-thinking">🤔 思考中…<br/>' + escapeHTML(thinking).replace(/\n/g, '<br>') + '</div>';
+                                }
+                                html += marked.parse(content);
+                                contentEl.innerHTML = html;
+                            }
+                            dsMessages.scrollTop = dsMessages.scrollHeight;
+                        } catch (_) {}
+                    }
+                }
+
+                messages.push({ role: 'assistant', content: content });
+            } catch (err) {
+                removeLoading();
+                appendMsg('assistant', '请求出错：' + err.message);
+                showToast('请求失败: ' + err.message, 'error');
+            } finally {
+                isSending = false;
+                dsSendBtn.disabled = false;
+            }
+        }
+
+        dsSendBtn.addEventListener('click', send);
+        dsInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                send();
+            }
+        });
+        dsInput.addEventListener('input', () => {
+            dsInput.style.height = 'auto';
+            dsInput.style.height = Math.min(160, dsInput.scrollHeight) + 'px';
+        });
+
+        // ═══════════════════════════════════════════
+        //  Tab switching
+        // ═══════════════════════════════════════════
+        const TAB_KEY = 'ds-active-tab';
+        const tabBtns = document.querySelectorAll('.ds-tab-btn');
+        const tabChat = document.getElementById('tab-chat');
+        const tabGames = document.getElementById('tab-games');
+        let currentTab = localStorage.getItem(TAB_KEY) || 'chat';
+
+        function switchTab(tab) {
+            currentTab = tab;
+            localStorage.setItem(TAB_KEY, tab);
+            tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+            if (tab === 'chat') {
+                tabChat.removeAttribute('hidden');
+                tabGames.setAttribute('hidden', '');
+                stopCurrentGame();
+                dsInput.focus();
+            } else {
+                tabChat.setAttribute('hidden', '');
+                tabGames.removeAttribute('hidden');
+                startCurrentGame();
+            }
+        }
+
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (btn.dataset.tab !== currentTab) switchTab(btn.dataset.tab);
+            });
+        });
+
+        // Restore saved tab
+        if (currentTab !== 'chat') switchTab(currentTab);
+
+        // ═══════════════════════════════════════════
+        //  Game engine
+        // ═══════════════════════════════════════════
+        const gameCanvas = document.getElementById('gameCanvas');
+        const gameCtx = gameCanvas.getContext('2d');
+        const gameCanvasWrap = document.getElementById('gameCanvasWrap');
+        const gameScoreEl = document.getElementById('gameScore');
+        const gameHudExtra = document.getElementById('gameHudExtra');
+        const gameHint = document.getElementById('gameHint');
+        const gameSelector = document.getElementById('gameSelector');
+        const touchControls = document.getElementById('touchControls');
+        const difficultySelector = document.getElementById('difficultySelector');
+
+        let currentGame = null;      // active game instance
+        let currentGameId = 'snake';
+        let currentDifficulty = 'medium';
+        let activeGameInstance = null;
+
+        // ── Difficulty selection ──
+        function updateDifficultyUI() {
+            difficultySelector.querySelectorAll('.ds-diff-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.diff === currentDifficulty);
+            });
+            // Only show difficulty selector for snake
+            difficultySelector.style.display = currentGameId === 'snake' ? '' : 'none';
+        }
+
+        difficultySelector.addEventListener('click', (e) => {
+            const btn = e.target.closest('.ds-diff-btn');
+            if (!btn) return;
+            const diff = btn.dataset.diff;
+            if (diff === currentDifficulty) return;
+            currentDifficulty = diff;
+            updateDifficultyUI();
+            // Restart if snake game is currently showing
+            if (currentGameId === 'snake' && currentTab === 'games' && activeGameInstance) {
+                startCurrentGame();
+            }
+        });
+
+        // ── Game card selection ──
+        gameSelector.addEventListener('click', (e) => {
+            const card = e.target.closest('.ds-game-card');
+            if (!card) return;
+            const gameId = card.dataset.game;
+            if (gameId === currentGameId) return;
+            currentGameId = gameId;
+            gameSelector.querySelectorAll('.ds-game-card').forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
+            updateDifficultyUI();
+            if (currentTab === 'games') startCurrentGame();
+        });
+
+        // ── Touch controls ──
+        touchControls.addEventListener('click', (e) => {
+            const btn = e.target.closest('.ds-touch-btn');
+            if (!btn || !activeGameInstance) return;
+            const key = btn.dataset.key;
+            if (activeGameInstance.handleKey) activeGameInstance.handleKey(key);
+        });
+        // Prevent touch buttons from stealing focus / triggering zoom
+        touchControls.addEventListener('touchstart', (e) => {
+            const btn = e.target.closest('.ds-touch-btn');
+            if (!btn || !activeGameInstance) return;
+            e.preventDefault();
+            const key = btn.dataset.key;
+            if (activeGameInstance.handleKey) activeGameInstance.handleKey(key);
+        });
+
+        // ── Keyboard ──
+        function onGameKey(e) {
+            if (currentTab !== 'games' || !activeGameInstance) return;
+            // Prevent page scroll on arrow keys / space
+            if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) {
+                e.preventDefault();
+            }
+            if (activeGameInstance.handleKey) {
+                activeGameInstance.handleKey(e.key);
+            }
+        }
+        document.addEventListener('keydown', onGameKey);
+
+        // ── Mouse / touch move for paddle games ──
+        function onGameMouseMove(e) {
+            if (currentTab !== 'games' || !activeGameInstance || !activeGameInstance.handleMouse) return;
+            const rect = gameCanvas.getBoundingClientRect();
+            const scaleX = gameCanvas.width / rect.width;
+            const x = (e.clientX - rect.left) * scaleX;
+            activeGameInstance.handleMouse(x);
+        }
+        gameCanvas.addEventListener('mousemove', onGameMouseMove);
+        gameCanvas.addEventListener('touchmove', (e) => {
+            if (currentTab !== 'games' || !activeGameInstance || !activeGameInstance.handleMouse) return;
+            e.preventDefault();
+            const rect = gameCanvas.getBoundingClientRect();
+            const scaleX = gameCanvas.width / rect.width;
+            const x = (e.touches[0].clientX - rect.left) * scaleX;
+            activeGameInstance.handleMouse(x);
+        }, { passive: false });
+        gameCanvas.addEventListener('click', (e) => {
+            if (currentTab !== 'games' || !activeGameInstance || !activeGameInstance.handleClick) return;
+            activeGameInstance.handleClick();
+        });
+
+        function startCurrentGame() {
+            stopCurrentGame();
+            gameCanvasWrap.querySelectorAll('.ds-game-overlay').forEach(el => el.remove());
+            gameScoreEl.textContent = '0';
+            gameHudExtra.textContent = '';
+            updateDifficultyUI();
+
+            // Overlay for game start
+            const overlay = document.createElement('div');
+            overlay.className = 'ds-game-overlay';
+            overlay.id = 'gameStartOverlay';
+            overlay.innerHTML = '<div class="ds-game-overlay-title">🎮 按任意方向键开始</div><button id="gameStartBtn">开始游戏</button>';
+            gameCanvasWrap.appendChild(overlay);
+
+            const startBtn = document.getElementById('gameStartBtn');
+            const startGame = () => {
+                const ov = document.getElementById('gameStartOverlay');
+                if (ov) ov.remove();
+                launchGame(currentGameId);
+            };
+            startBtn.addEventListener('click', startGame);
+
+            // Also start on arrow key / space / wasd
+            const onceStart = (e) => {
+                if (currentTab !== 'games') return;
+                if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','w','a','s','d','W','A','S','D'].includes(e.key)) {
+                    document.removeEventListener('keydown', onceStart);
+                    const ov = document.getElementById('gameStartOverlay');
+                    if (ov) ov.remove();
+                    launchGame(currentGameId);
+                }
+            };
+            document.addEventListener('keydown', onceStart);
+            // Store ref to clean up
+            gameCanvasWrap._onceStart = onceStart;
+
+            gameHint.textContent = '';
+            resizeGameCanvas(currentGameId);
+        }
+
+        function stopCurrentGame() {
+            if (activeGameInstance && activeGameInstance.stop) activeGameInstance.stop();
+            activeGameInstance = null;
+            if (gameCanvasWrap._onceStart) {
+                document.removeEventListener('keydown', gameCanvasWrap._onceStart);
+                gameCanvasWrap._onceStart = null;
+            }
+            gameCanvasWrap.querySelectorAll('.ds-game-overlay').forEach(el => el.remove());
+        }
+
+        function resizeGameCanvas(gameId) {
+            switch (gameId) {
+                case 'snake':   gameCanvas.width = 400; gameCanvas.height = 400; break;
+                case 'tetris':  gameCanvas.width = 300; gameCanvas.height = 600; break;
+                case 'breakout': gameCanvas.width = 400; gameCanvas.height = 500; break;
+            }
+        }
+
+        function launchGame(gameId) {
+            stopCurrentGame();
+            resizeGameCanvas(gameId);
+            gameScoreEl.textContent = '0';
+            gameHudExtra.textContent = '';
+
+            switch (gameId) {
+                case 'snake':   activeGameInstance = new SnakeGame(gameCanvas, gameCtx, gameScoreEl, gameHudExtra, gameHint, gameCanvasWrap, currentDifficulty); break;
+                case 'tetris':  activeGameInstance = new TetrisGame(gameCanvas, gameCtx, gameScoreEl, gameHudExtra, gameHint, gameCanvasWrap); break;
+                case 'breakout': activeGameInstance = new BreakoutGame(gameCanvas, gameCtx, gameScoreEl, gameHudExtra, gameHint, gameCanvasWrap); break;
+            }
+            if (activeGameInstance && activeGameInstance.start) activeGameInstance.start();
+        }
+
+        // ═══════════════════════════════════════════
+        //  Snake Game
+        // ═══════════════════════════════════════════
+        class SnakeGame {
+            constructor(canvas, ctx, scoreEl, extraEl, hintEl, wrapEl, difficulty) {
+                this.canvas = canvas;
+                this.ctx = ctx;
+                this.scoreEl = scoreEl;
+                this.extraEl = extraEl;
+                this.hintEl = hintEl;
+                this.wrapEl = wrapEl;
+                this.difficulty = difficulty || 'medium';
+                this.gs = 20; // grid size
+                this.cols = Math.floor(canvas.width / this.gs);
+                this.rows = Math.floor(canvas.height / this.gs);
+                this.running = false;
+                this.rafId = null;
+                this.lastTick = 0;
+                this.gameOver = true; // ensure reset() runs on first start
+                // Difficulty presets
+                const presets = {
+                    easy:   { speed: 300, dec: 0, wrap: false, label: '简单' },
+                    medium: { speed: 240, dec: 1, wrap: false, label: '中等' },
+                    hard:   { speed: 170, dec: 2, wrap: false, label: '困难' },
+                };
+                this.diffConfig = presets[this.difficulty] || presets.medium;
+                this.speed = this.diffConfig.speed;
+            }
+
+            reset() {
+                // Random head position, at least 2 cells from edges, and head must have room for 2 body segments in opposite direction
+                const margin = 2;
+                const headX = margin + Math.floor(Math.random() * (this.cols - 2 * margin));
+                const headY = margin + Math.floor(Math.random() * (this.rows - 2 * margin));
+                // Random direction
+                const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+                const validDirs = dirs.filter(d => {
+                    const tailX = headX - d.x * 2;
+                    const tailY = headY - d.y * 2;
+                    return tailX >= 0 && tailX < this.cols && tailY >= 0 && tailY < this.rows;
+                });
+                const dir = validDirs[Math.floor(Math.random() * validDirs.length)] || { x: 1, y: 0 };
+                // Build snake: head at [2], body at [1], tail at [0]
+                this.snake = [];
+                for (let i = 2; i >= 0; i--) {
+                    this.snake.push({ x: headX - dir.x * i, y: headY - dir.y * i });
+                }
+                this.dir = { ...dir };
+                this.dirQueue = [];
+                this.food = this._randomFood();
+                this.score = 0;
+                this.gameOver = false;
+                this.speed = this.diffConfig.speed;
+                this.scoreEl.textContent = '0';
+                this.extraEl.textContent = '难度: ' + this.diffConfig.label + ' | 长度: 3';
+                this.hintEl.textContent = '方向键 / WASD 控制方向';
+            }
+
+            _randomFood() {
+                let p;
+                do {
+                    p = { x: Math.floor(Math.random() * this.cols), y: Math.floor(Math.random() * this.rows) };
+                } while (this.snake.some(s => s.x === p.x && s.y === p.y));
+                return p;
+            }
+
+            handleKey(key) {
+                const map = { ArrowUp: [0,-1], ArrowDown: [0,1], ArrowLeft: [-1,0], ArrowRight: [1,0], w: [0,-1], s: [0,1], a: [-1,0], d: [1,0], W: [0,-1], S: [0,1], A: [-1,0], D: [1,0] };
+                const d = map[key];
+                if (!d) return;
+                // Check against the last buffered direction (or current dir if none buffered)
+                const last = this.dirQueue.length > 0 ? this.dirQueue[this.dirQueue.length - 1] : this.dir;
+                if (last.x + d[0] === 0 && last.y + d[1] === 0) return; // no reverse
+                if (this.dirQueue.length < 2) {
+                    this.dirQueue.push({ x: d[0], y: d[1] });
+                }
+            }
+
+            update(ts) {
+                if (this.gameOver || !this.running) return;
+                if (ts - this.lastTick < this.speed) return;
+                this.lastTick = ts;
+
+                // Consume one buffered direction per tick
+                if (this.dirQueue.length > 0) {
+                    this.dir = this.dirQueue.shift();
+                }
+                const head = this.snake[this.snake.length - 1];
+                const nx = head.x + this.dir.x;
+                const ny = head.y + this.dir.y;
+
+                // Wall collision
+                if (nx < 0 || nx >= this.cols || ny < 0 || ny >= this.rows) {
+                    this._end();
+                    return;
+                }
+                // Self collision
+                if (this.snake.some(s => s.x === nx && s.y === ny)) {
+                    this._end();
+                    return;
+                }
+
+                this.snake.push({ x: nx, y: ny });
+
+                if (nx === this.food.x && ny === this.food.y) {
+                    this.score += 10;
+                    this.scoreEl.textContent = this.score;
+                    this.food = this._randomFood();
+                    this.speed = Math.max(40, this.speed - this.diffConfig.dec);
+                    this.extraEl.textContent = '难度: ' + this.diffConfig.label + ' | 长度: ' + this.snake.length;
+                } else {
+                    this.snake.shift();
+                }
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                const gs = this.gs;
+                const w = this.canvas.width;
+                const h = this.canvas.height;
+
+                // Clear
+                ctx.clearRect(0, 0, w, h);
+                ctx.fillStyle = '#1a1a2e';
+                ctx.fillRect(0, 0, w, h);
+
+                // Grid
+                ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+                ctx.lineWidth = 0.5;
+                for (let x = 0; x <= this.cols; x++) { ctx.beginPath(); ctx.moveTo(x * gs, 0); ctx.lineTo(x * gs, h); ctx.stroke(); }
+                for (let y = 0; y <= this.rows; y++) { ctx.beginPath(); ctx.moveTo(0, y * gs); ctx.lineTo(w, y * gs); ctx.stroke(); }
+
+                // Food
+                const fx = this.food.x * gs + gs / 2;
+                const fy = this.food.y * gs + gs / 2;
+                const pulse = 1 + 0.15 * Math.sin(performance.now() / 200);
+                ctx.fillStyle = '#ff4757';
+                ctx.shadowColor = '#ff4757';
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.arc(fx, fy, (gs / 2 - 2) * pulse, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                // Snake
+                this.snake.forEach((seg, i) => {
+                    const isHead = i === this.snake.length - 1;
+                    const grad = ctx.createLinearGradient(seg.x * gs, seg.y * gs, seg.x * gs + gs, seg.y * gs + gs);
+                    if (isHead) {
+                        grad.addColorStop(0, '#4ecdc4');
+                        grad.addColorStop(1, '#44b3ab');
+                    } else {
+                        const t = i / Math.max(1, this.snake.length - 2);
+                        grad.addColorStop(0, `hsl(${140 + t * 30}, 70%, ${45 + t * 10}%)`);
+                        grad.addColorStop(1, `hsl(${140 + t * 30}, 70%, ${38 + t * 10}%)`);
+                    }
+                    ctx.fillStyle = grad;
+                    ctx.shadowColor = isHead ? '#4ecdc4' : '#2ecc71';
+                    ctx.shadowBlur = isHead ? 12 : 4;
+                    ctx.fillRect(seg.x * gs + 1, seg.y * gs + 1, gs - 2, gs - 2);
+                });
+                ctx.shadowBlur = 0;
+            }
+
+            _end() {
+                this.gameOver = true;
+                this.running = false;
+                if (this.rafId) { cancelAnimationFrame(this.rafId); this.rafId = null; }
+                this._showOverlay('🐍 游戏结束', '得分: ' + this.score);
+            }
+
+            _showOverlay(title, subtitle) {
+                const ov = document.createElement('div');
+                ov.className = 'ds-game-overlay';
+                ov.innerHTML = '<div class="ds-game-overlay-title">' + title + '</div><div>' + subtitle + ' | 难度: ' + this.diffConfig.label + '</div><button>再来一局</button>';
+                ov.querySelector('button').addEventListener('click', () => {
+                    ov.remove();
+                    this.reset();
+                    this.start();
+                });
+                this.wrapEl.appendChild(ov);
+            }
+
+            loop(ts) {
+                if (!this.running) return;
+                this.update(ts);
+                this.draw();
+                this.rafId = requestAnimationFrame(t => this.loop(t));
+            }
+
+            start() {
+                if (this.gameOver) this.reset();
+                this.running = true;
+                this.lastTick = performance.now();
+                this.rafId = requestAnimationFrame(t => this.loop(t));
+            }
+
+            stop() {
+                this.running = false;
+                if (this.rafId) { cancelAnimationFrame(this.rafId); this.rafId = null; }
+            }
+        }
+
+        // ═══════════════════════════════════════════
+        //  Tetris Game
+        // ═══════════════════════════════════════════
+        class TetrisGame {
+            constructor(canvas, ctx, scoreEl, extraEl, hintEl, wrapEl) {
+                this.canvas = canvas;
+                this.ctx = ctx;
+                this.scoreEl = scoreEl;
+                this.extraEl = extraEl;
+                this.hintEl = hintEl;
+                this.wrapEl = wrapEl;
+                this.cols = 10;
+                this.rows = 20;
+                this.cs = 30; // cell size
+                this.running = false;
+                this.rafId = null;
+                this.lastDrop = 0;
+                this.dropInterval = 800;
+                this.gameOver = true; // ensure reset() runs on first start
+            }
+
+            reset() {
+                this.board = Array.from({ length: this.rows }, () => Array(this.cols).fill(null));
+                this.score = 0;
+                this.linesCleared = 0;
+                this.level = 1;
+                this.gameOver = false;
+                this.dropInterval = 800;
+                this.scoreEl.textContent = '0';
+                this.extraEl.textContent = '等级: 1 | 行数: 0';
+                this.hintEl.textContent = '← → 移动  ↑ 旋转  ↓ 加速  Space 硬降';
+                this._spawnPiece();
+            }
+
+            _PIECES() {
+                return [
+                    { shape: [[1,1,1,1]], color: '#00f0f0' },
+                    { shape: [[1,1],[1,1]], color: '#f0f000' },
+                    { shape: [[0,1,0],[1,1,1]], color: '#a000f0' },
+                    { shape: [[1,0,0],[1,1,1]], color: '#0000f0' },
+                    { shape: [[0,0,1],[1,1,1]], color: '#f0a000' },
+                    { shape: [[0,1,1],[1,1,0]], color: '#00f000' },
+                    { shape: [[1,1,0],[0,1,1]], color: '#f00000' },
+                ];
+            }
+
+            _spawnPiece() {
+                const pieces = this._PIECES();
+                const def = pieces[Math.floor(Math.random() * pieces.length)];
+                this.piece = {
+                    shape: def.shape.map(r => [...r]),
+                    color: def.color,
+                    x: Math.floor((this.cols - def.shape[0].length) / 2),
+                    y: 0
+                };
+                // Next piece
+                if (!this.nextPiece) {
+                    const nd = pieces[Math.floor(Math.random() * pieces.length)];
+                    this.nextPiece = { shape: nd.shape.map(r => [...r]), color: nd.color };
+                } else {
+                    this.piece = { ...this.nextPiece, x: Math.floor((this.cols - this.nextPiece.shape[0].length) / 2), y: 0 };
+                    const nd = pieces[Math.floor(Math.random() * pieces.length)];
+                    this.nextPiece = { shape: nd.shape.map(r => [...r]), color: nd.color };
+                }
+                if (!this._valid(this.piece.shape, this.piece.x, this.piece.y)) {
+                    this._end();
+                }
+            }
+
+            _valid(shape, px, py) {
+                for (let r = 0; r < shape.length; r++) {
+                    for (let c = 0; c < shape[r].length; c++) {
+                        if (!shape[r][c]) continue;
+                        const bx = px + c;
+                        const by = py + r;
+                        if (bx < 0 || bx >= this.cols || by >= this.rows) return false;
+                        if (by < 0) continue;
+                        if (this.board[by][bx] !== null) return false;
+                    }
+                }
+                return true;
+            }
+
+            _place() {
+                const { shape, x, y, color } = this.piece;
+                for (let r = 0; r < shape.length; r++) {
+                    for (let c = 0; c < shape[r].length; c++) {
+                        if (!shape[r][c]) continue;
+                        const by = y + r;
+                        if (by < 0) { this._end(); return; }
+                        this.board[by][x + c] = color;
+                    }
+                }
+                // Clear lines
+                let cleared = 0;
+                for (let r = this.rows - 1; r >= 0; r--) {
+                    if (this.board[r].every(cell => cell !== null)) {
+                        this.board.splice(r, 1);
+                        this.board.unshift(Array(this.cols).fill(null));
+                        cleared++;
+                        r++; // re-check this row
+                    }
+                }
+                if (cleared > 0) {
+                    const pts = [0, 100, 300, 500, 800];
+                    this.score += (pts[cleared] || cleared * 200) * this.level;
+                    this.linesCleared += cleared;
+                    this.level = Math.floor(this.linesCleared / 10) + 1;
+                    this.dropInterval = Math.max(50, 800 - (this.level - 1) * 60);
+                    this.scoreEl.textContent = this.score;
+                    this.extraEl.textContent = '等级: ' + this.level + ' | 行数: ' + this.linesCleared;
+                }
+                this._spawnPiece();
+            }
+
+            _rotate(shape) {
+                // Rotate clockwise: transpose + reverse rows
+                const rows = shape.length;
+                const cols = shape[0].length;
+                const rotated = Array.from({ length: cols }, () => Array(rows).fill(0));
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        rotated[c][rows - 1 - r] = shape[r][c];
+                    }
+                }
+                return rotated;
+            }
+
+            handleKey(key) {
+                if (this.gameOver || !this.running) return;
+                if (key === 'ArrowLeft') {
+                    if (this._valid(this.piece.shape, this.piece.x - 1, this.piece.y)) this.piece.x--;
+                } else if (key === 'ArrowRight') {
+                    if (this._valid(this.piece.shape, this.piece.x + 1, this.piece.y)) this.piece.x++;
+                } else if (key === 'ArrowDown') {
+                    if (this._valid(this.piece.shape, this.piece.x, this.piece.y + 1)) {
+                        this.piece.y++;
+                        this.score += 1;
+                        this.scoreEl.textContent = this.score;
+                    }
+                } else if (key === 'ArrowUp') {
+                    const rot = this._rotate(this.piece.shape);
+                    // Try basic, then wall kicks
+                    const kicks = [0, -1, 1, -2, 2];
+                    for (const dx of kicks) {
+                        if (this._valid(rot, this.piece.x + dx, this.piece.y)) {
+                            this.piece.shape = rot;
+                            this.piece.x += dx;
+                            break;
+                        }
+                    }
+                } else if (key === ' ') {
+                    // Hard drop
+                    while (this._valid(this.piece.shape, this.piece.x, this.piece.y + 1)) {
+                        this.piece.y++;
+                        this.score += 2;
+                    }
+                    this.scoreEl.textContent = this.score;
+                    this._place();
+                }
+            }
+
+            update(ts) {
+                if (this.gameOver || !this.running) return;
+                if (ts - this.lastDrop < this.dropInterval) return;
+                this.lastDrop = ts;
+                if (this._valid(this.piece.shape, this.piece.x, this.piece.y + 1)) {
+                    this.piece.y++;
+                } else {
+                    this._place();
+                }
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                const cs = this.cs;
+                const w = this.canvas.width;
+                const h = this.canvas.height;
+
+                // Background
+                ctx.fillStyle = '#0a0a0f';
+                ctx.fillRect(0, 0, w, h);
+
+                // Board grid
+                ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+                ctx.lineWidth = 0.5;
+                for (let x = 0; x <= this.cols; x++) { ctx.beginPath(); ctx.moveTo(x * cs, 0); ctx.lineTo(x * cs, this.rows * cs); ctx.stroke(); }
+                for (let y = 0; y <= this.rows; y++) { ctx.beginPath(); ctx.moveTo(0, y * cs); ctx.lineTo(this.cols * cs, y * cs); ctx.stroke(); }
+
+                // Placed blocks
+                for (let r = 0; r < this.rows; r++) {
+                    for (let c = 0; c < this.cols; c++) {
+                        if (this.board[r][c]) {
+                            ctx.fillStyle = this.board[r][c];
+                            ctx.shadowColor = this.board[r][c];
+                            ctx.shadowBlur = 4;
+                            ctx.fillRect(c * cs + 1, r * cs + 1, cs - 2, cs - 2);
+                            // Highlight
+                            ctx.fillStyle = 'rgba(255,255,255,0.15)';
+                            ctx.fillRect(c * cs + 1, r * cs + 1, cs - 2, 4);
+                        }
+                    }
+                }
+                ctx.shadowBlur = 0;
+
+                // Current piece (ghost + piece)
+                if (this.piece && !this.gameOver) {
+                    // Ghost
+                    let gy = this.piece.y;
+                    while (this._valid(this.piece.shape, this.piece.x, gy + 1)) gy++;
+                    if (gy !== this.piece.y) {
+                        this._drawPiece(this.piece.shape, this.piece.x, gy, 'rgba(255,255,255,0.12)');
+                    }
+                    this._drawPiece(this.piece.shape, this.piece.x, this.piece.y, this.piece.color);
+                }
+            }
+
+            _drawPiece(shape, px, py, color) {
+                const ctx = this.ctx;
+                const cs = this.cs;
+                for (let r = 0; r < shape.length; r++) {
+                    for (let c = 0; c < shape[r].length; c++) {
+                        if (!shape[r][c]) continue;
+                        const bx = (px + c) * cs;
+                        const by = (py + r) * cs;
+                        if (py + r < 0) continue;
+                        ctx.fillStyle = color;
+                        ctx.shadowColor = color;
+                        ctx.shadowBlur = 4;
+                        ctx.fillRect(bx + 1, by + 1, cs - 2, cs - 2);
+                        if (color !== 'rgba(255,255,255,0.12)') {
+                            ctx.fillStyle = 'rgba(255,255,255,0.15)';
+                            ctx.fillRect(bx + 1, by + 1, cs - 2, 4);
+                        }
+                    }
+                }
+                ctx.shadowBlur = 0;
+            }
+
+            _end() {
+                this.gameOver = true;
+                this.running = false;
+                if (this.rafId) { cancelAnimationFrame(this.rafId); this.rafId = null; }
+                const ov = document.createElement('div');
+                ov.className = 'ds-game-overlay';
+                ov.innerHTML = '<div class="ds-game-overlay-title">🧱 游戏结束</div><div>得分: ' + this.score + ' | 等级: ' + this.level + '</div><button>再来一局</button>';
+                ov.querySelector('button').addEventListener('click', () => { ov.remove(); this.reset(); this.start(); });
+                this.wrapEl.appendChild(ov);
+            }
+
+            loop(ts) {
+                if (!this.running) return;
+                this.update(ts);
+                this.draw();
+                this.rafId = requestAnimationFrame(t => this.loop(t));
+            }
+
+            start() {
+                if (this.gameOver) this.reset();
+                this.running = true;
+                this.lastDrop = performance.now();
+                this.rafId = requestAnimationFrame(t => this.loop(t));
+            }
+
+            stop() {
+                this.running = false;
+                if (this.rafId) { cancelAnimationFrame(this.rafId); this.rafId = null; }
+            }
+        }
+
+        // ═══════════════════════════════════════════
+        //  Breakout Game
+        // ═══════════════════════════════════════════
+        class BreakoutGame {
+            constructor(canvas, ctx, scoreEl, extraEl, hintEl, wrapEl) {
+                this.canvas = canvas;
+                this.ctx = ctx;
+                this.scoreEl = scoreEl;
+                this.extraEl = extraEl;
+                this.hintEl = hintEl;
+                this.wrapEl = wrapEl;
+                this.w = canvas.width;
+                this.h = canvas.height;
+                this.running = false;
+                this.rafId = null;
+                this.paddleW = 80;
+                this.paddleH = 14;
+                this.ballR = 7;
+                this.lives = 3;
+                this.brickRows = 6;
+                this.brickCols = 8;
+                this.brickW = (this.w - 40) / this.brickCols;
+                this.brickH = 20;
+                this.brickPad = 4;
+                this.brickTop = 50;
+                this.brickLeft = 20;
+                this.gameOver = true; // ensure reset() runs on first start
+            }
+
+            reset() {
+                this.paddleX = this.w / 2 - this.paddleW / 2;
+                this.ballX = this.w / 2;
+                this.ballY = this.h - 40;
+                this.ballDX = 0;
+                this.ballDY = 0;
+                this.ballLaunched = false;
+                this.lives = 3;
+                this.score = 0;
+                this.gameOver = false;
+                this.scoreEl.textContent = '0';
+                this.extraEl.textContent = '生命: ❤️❤️❤️';
+                this.hintEl.textContent = '鼠标 / ← → 移动挡板  |  点击或按空格发球';
+
+                const colors = ['#ff4757','#ff6b35','#ffc048','#2ed573','#1e90ff','#a55eea'];
+                this.bricks = [];
+                for (let r = 0; r < this.brickRows; r++) {
+                    this.bricks[r] = [];
+                    for (let c = 0; c < this.brickCols; c++) {
+                        this.bricks[r][c] = { alive: true, color: colors[r % colors.length], points: (this.brickRows - r) * 10 };
+                    }
+                }
+            }
+
+            handleKey(key) {
+                if (key === 'ArrowLeft') this._movePaddle(-1);
+                if (key === 'ArrowRight') this._movePaddle(1);
+                if (key === ' ') { if (!this.ballLaunched && !this.gameOver) this._launchBall(); }
+            }
+
+            handleMouse(x) {
+                this.paddleX = Math.max(0, Math.min(this.w - this.paddleW, x - this.paddleW / 2));
+            }
+
+            handleClick() {
+                if (!this.ballLaunched && !this.gameOver) this._launchBall();
+            }
+
+            _movePaddle(dir) {
+                const speed = 8;
+                this.paddleX = Math.max(0, Math.min(this.w - this.paddleW, this.paddleX + dir * speed));
+            }
+
+            _launchBall() {
+                const angle = (Math.random() - 0.5) * 0.8 + Math.PI / 2; // Upward angle
+                const speed = 5;
+                this.ballDX = Math.cos(angle) * speed;
+                this.ballDY = -Math.sin(angle) * speed;
+                this.ballLaunched = true;
+                this.hintEl.textContent = '';
+            }
+
+            update(ts) {
+                if (this.gameOver || !this.running) return;
+
+                if (this.ballLaunched) {
+                    this.ballX += this.ballDX;
+                    this.ballY += this.ballDY;
+
+                    // Wall collisions
+                    if (this.ballX - this.ballR <= 0) { this.ballX = this.ballR; this.ballDX = Math.abs(this.ballDX); }
+                    if (this.ballX + this.ballR >= this.w) { this.ballX = this.w - this.ballR; this.ballDX = -Math.abs(this.ballDX); }
+                    if (this.ballY - this.ballR <= 0) { this.ballY = this.ballR; this.ballDY = Math.abs(this.ballDY); }
+
+                    // Bottom - lose life
+                    if (this.ballY + this.ballR >= this.h) {
+                        this.lives--;
+                        this.extraEl.textContent = '生命: ' + '❤️'.repeat(Math.max(0, this.lives));
+                        if (this.lives <= 0) {
+                            this._end();
+                            return;
+                        }
+                        this.ballLaunched = false;
+                        this.ballX = this.paddleX + this.paddleW / 2;
+                        this.ballY = this.h - 40;
+                        this.ballDX = 0;
+                        this.ballDY = 0;
+                        this.hintEl.textContent = '点击或按空格重新发球';
+                    }
+
+                    // Paddle collision
+                    if (this.ballDY > 0 &&
+                        this.ballY + this.ballR >= this.h - 30 &&
+                        this.ballY + this.ballR <= this.h - 30 + this.paddleH + 6 &&
+                        this.ballX >= this.paddleX - this.ballR &&
+                        this.ballX <= this.paddleX + this.paddleW + this.ballR) {
+                        // Calculate bounce angle based on hit position
+                        const hitPos = (this.ballX - this.paddleX) / this.paddleW; // 0..1
+                        const angle = (hitPos - 0.5) * Math.PI * 0.7; // -63° to +63°
+                        const speed = Math.sqrt(this.ballDX ** 2 + this.ballDY ** 2);
+                        this.ballDX = Math.sin(angle) * speed;
+                        this.ballDY = -Math.abs(Math.cos(angle) * speed);
+                        this.ballY = this.h - 30 - this.ballR;
+                    }
+
+                    // Brick collision
+                    let hitBrick = false;
+                    for (let r = 0; r < this.brickRows && !hitBrick; r++) {
+                        for (let c = 0; c < this.brickCols && !hitBrick; c++) {
+                            const b = this.bricks[r][c];
+                            if (!b.alive) continue;
+                            const bx = this.brickLeft + c * (this.brickW + this.brickPad);
+                            const by = this.brickTop + r * (this.brickH + this.brickPad);
+                            if (this.ballX + this.ballR > bx && this.ballX - this.ballR < bx + this.brickW &&
+                                this.ballY + this.ballR > by && this.ballY - this.ballR < by + this.brickH) {
+                                b.alive = false;
+                                this.score += b.points;
+                                this.scoreEl.textContent = this.score;
+                                this.ballDY = -this.ballDY;
+                                hitBrick = true;
+
+                                // Check win
+                                if (this.bricks.every(row => row.every(brick => !brick.alive))) {
+                                    this.ballLaunched = false;
+                                    this.ballDX = 0;
+                                    this.ballDY = 0;
+                                    this.hintEl.textContent = '🎉 全部清除！';
+                                    // Spawn new level after delay
+                                    setTimeout(() => {
+                                        if (!this.running) return;
+                                        this.brickRows = Math.min(8, this.brickRows + 1);
+                                        this._respawnBricks();
+                                        this.ballLaunched = false;
+                                        this.ballX = this.paddleX + this.paddleW / 2;
+                                        this.ballY = this.h - 40;
+                                        this.hintEl.textContent = '新关卡！点击或按空格发球';
+                                    }, 1500);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Ball follows paddle
+                    this.ballX = this.paddleX + this.paddleW / 2;
+                }
+            }
+
+            _respawnBricks() {
+                const colors = ['#ff4757','#ff6b35','#ffc048','#2ed573','#1e90ff','#a55eea','#ff4757','#ff6b35'];
+                this.bricks = [];
+                for (let r = 0; r < this.brickRows; r++) {
+                    this.bricks[r] = [];
+                    for (let c = 0; c < this.brickCols; c++) {
+                        this.bricks[r][c] = { alive: true, color: colors[r % colors.length], points: (this.brickRows - r) * 10 };
+                    }
+                }
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                const w = this.w;
+                const h = this.h;
+
+                ctx.fillStyle = '#0a0a0f';
+                ctx.fillRect(0, 0, w, h);
+
+                // Bricks
+                for (let r = 0; r < this.brickRows; r++) {
+                    for (let c = 0; c < this.brickCols; c++) {
+                        const b = this.bricks[r][c];
+                        if (!b.alive) continue;
+                        const bx = this.brickLeft + c * (this.brickW + this.brickPad);
+                        const by = this.brickTop + r * (this.brickH + this.brickPad);
+                        ctx.fillStyle = b.color;
+                        ctx.shadowColor = b.color;
+                        ctx.shadowBlur = 6;
+                        ctx.fillRect(bx, by, this.brickW, this.brickH);
+                        // Highlight
+                        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                        ctx.fillRect(bx + 2, by + 1, this.brickW - 4, 4);
+                    }
+                }
+                ctx.shadowBlur = 0;
+
+                // Paddle
+                const py = h - 30;
+                const grad = ctx.createLinearGradient(this.paddleX, py, this.paddleX, py + this.paddleH);
+                grad.addColorStop(0, '#60a5fa');
+                grad.addColorStop(1, '#3b82f6');
+                ctx.fillStyle = grad;
+                ctx.shadowColor = '#60a5fa';
+                ctx.shadowBlur = 12;
+                ctx.fillRect(this.paddleX, py, this.paddleW, this.paddleH);
+                ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                ctx.fillRect(this.paddleX + 2, py + 1, this.paddleW - 4, 4);
+                ctx.shadowBlur = 0;
+
+                // Ball
+                ctx.fillStyle = '#fff';
+                ctx.shadowColor = '#fff';
+                ctx.shadowBlur = 16;
+                ctx.beginPath();
+                ctx.arc(this.ballX, this.ballY, this.ballR, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            _end() {
+                this.gameOver = true;
+                this.running = false;
+                if (this.rafId) { cancelAnimationFrame(this.rafId); this.rafId = null; }
+                const ov = document.createElement('div');
+                ov.className = 'ds-game-overlay';
+                ov.innerHTML = '<div class="ds-game-overlay-title">🏓 游戏结束</div><div>最终得分: ' + this.score + '</div><button>再来一局</button>';
+                ov.querySelector('button').addEventListener('click', () => { ov.remove(); this.reset(); this.start(); });
+                this.wrapEl.appendChild(ov);
+            }
+
+            loop(ts) {
+                if (!this.running) return;
+                this.update(ts);
+                this.draw();
+                this.rafId = requestAnimationFrame(t => this.loop(t));
+            }
+
+            start() {
+                if (this.gameOver) this.reset();
+                this.running = true;
+                this.rafId = requestAnimationFrame(t => this.loop(t));
+            }
+
+            stop() {
+                this.running = false;
+                if (this.rafId) { cancelAnimationFrame(this.rafId); this.rafId = null; }
+            }
+        }
+
+        // ── Initialize game UI (pre-load first game card) ──
+        // The first game will be set up when user switches to the games tab
+    })();
+    </script>
+</body>
+</html>
