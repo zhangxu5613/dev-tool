@@ -1532,15 +1532,15 @@
                     const isHead = i === this.snake.length - 1;
                     const grad = ctx.createLinearGradient(seg.x * gs, seg.y * gs, seg.x * gs + gs, seg.y * gs + gs);
                     if (isHead) {
-                        grad.addColorStop(0, '#4ecdc4');
-                        grad.addColorStop(1, '#44b3ab');
+                        grad.addColorStop(0, '#f9ca24');
+                        grad.addColorStop(1, '#e0a800');
                     } else {
                         const t = i / Math.max(1, this.snake.length - 2);
                         grad.addColorStop(0, `hsl(${140 + t * 30}, 70%, ${45 + t * 10}%)`);
                         grad.addColorStop(1, `hsl(${140 + t * 30}, 70%, ${38 + t * 10}%)`);
                     }
                     ctx.fillStyle = grad;
-                    ctx.shadowColor = isHead ? '#4ecdc4' : '#2ecc71';
+                    ctx.shadowColor = isHead ? '#f9ca24' : '#2ecc71';
                     ctx.shadowBlur = isHead ? 12 : 4;
                     ctx.fillRect(seg.x * gs + 1, seg.y * gs + 1, gs - 2, gs - 2);
                 });
