@@ -1384,6 +1384,7 @@
                 };
                 this.diffConfig = presets[this.difficulty] || presets.medium;
                 this.speed = this.diffConfig.speed;
+                this._pauseOverlayEl = null;
             }
 
             reset() {
@@ -1409,10 +1410,12 @@
                 this.food = this._randomFood();
                 this.score = 0;
                 this.gameOver = false;
+                this.started = false;
+                this.paused = false;
                 this.speed = this.diffConfig.speed;
                 this.scoreEl.textContent = '0';
                 this.extraEl.textContent = '难度: ' + this.diffConfig.label + ' | 长度: 3';
-                this.hintEl.textContent = '方向键 / WASD 控制方向';
+                this.hintEl.textContent = '按方向键开始移动';
             }
 
             _randomFood() {
@@ -1424,9 +1427,31 @@
             }
 
             handleKey(key) {
+                // Space: toggle pause / resume
+                if (key === ' ') {
+                    if (this.gameOver) return;
+                    if (!this.started) return;
+                    if (this.paused) {
+                        this._resume();
+                    } else {
+                        this._pause();
+                    }
+                    return;
+                }
+
                 const map = { ArrowUp: [0,-1], ArrowDown: [0,1], ArrowLeft: [-1,0], ArrowRight: [1,0], w: [0,-1], s: [0,1], a: [-1,0], d: [1,0], W: [0,-1], S: [0,1], A: [-1,0], D: [1,0] };
                 const d = map[key];
                 if (!d) return;
+
+                // First direction key starts the snake moving
+                if (!this.started) {
+                    this.started = true;
+                    this.paused = false;
+                    this.lastTick = performance.now();
+                    this.hintEl.textContent = '方向键 / WASD 控制方向 | 空格暂停';
+                }
+                if (this.paused) return;
+
                 // Check against the last buffered direction (or current dir if none buffered)
                 const last = this.dirQueue.length > 0 ? this.dirQueue[this.dirQueue.length - 1] : this.dir;
                 if (last.x + d[0] === 0 && last.y + d[1] === 0) return; // no reverse
@@ -1437,6 +1462,7 @@
 
             update(ts) {
                 if (this.gameOver || !this.running) return;
+                if (!this.started || this.paused) return;
                 if (ts - this.lastTick < this.speed) return;
                 this.lastTick = ts;
 
@@ -1524,11 +1550,13 @@
             _end() {
                 this.gameOver = true;
                 this.running = false;
+                this._hidePauseOverlay();
                 if (this.rafId) { cancelAnimationFrame(this.rafId); this.rafId = null; }
                 this._showOverlay('🐍 游戏结束', '得分: ' + this.score);
             }
 
             _showOverlay(title, subtitle) {
+                this._hidePauseOverlay();
                 const ov = document.createElement('div');
                 ov.className = 'ds-game-overlay';
                 ov.innerHTML = '<div class="ds-game-overlay-title">' + title + '</div><div>' + subtitle + ' | 难度: ' + this.diffConfig.label + '</div><button>再来一局</button>';
@@ -1538,6 +1566,35 @@
                     this.start();
                 });
                 this.wrapEl.appendChild(ov);
+            }
+
+            _pause() {
+                this.paused = true;
+                this._showPauseOverlay();
+            }
+
+            _resume() {
+                this.paused = false;
+                this.lastTick = performance.now();
+                this._hidePauseOverlay();
+                this.hintEl.textContent = '方向键 / WASD 控制方向 | 空格暂停';
+            }
+
+            _showPauseOverlay() {
+                if (this._pauseOverlayEl) return;
+                const ov = document.createElement('div');
+                ov.className = 'ds-game-overlay';
+                ov.id = 'snakePauseOverlay';
+                ov.innerHTML = '<div class="ds-game-overlay-title">⏸️ 暂停中</div><div>按空格键继续</div>';
+                this.wrapEl.appendChild(ov);
+                this._pauseOverlayEl = ov;
+            }
+
+            _hidePauseOverlay() {
+                if (this._pauseOverlayEl) {
+                    this._pauseOverlayEl.remove();
+                    this._pauseOverlayEl = null;
+                }
             }
 
             loop(ts) {
@@ -1556,6 +1613,7 @@
 
             stop() {
                 this.running = false;
+                this._hidePauseOverlay();
                 if (this.rafId) { cancelAnimationFrame(this.rafId); this.rafId = null; }
             }
         }
