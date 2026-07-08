@@ -7,6 +7,8 @@
     <meta name="description" content="免费在线开发者工具箱：JSON 格式化、Base64、URL 编解码、时间戳转换、哈希、UUID、正则测试等。" />
     <link rel="icon" type="image/png" href="favicon.png" />
     <link rel="stylesheet" href="style.css?v=69" />
+    <link rel="stylesheet" href="markdown-editor.css?v=1" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
 </head>
 <body>
     <header class="site-header">
@@ -27,6 +29,7 @@
                 <a href="#" class="nav-item" data-tab="uuid">UUID 生成</a>
                 <a href="#" class="nav-item" data-tab="regex">正则测试</a>
                 <a href="#" class="nav-item" data-tab="qrcode">二维码生成</a>
+                <a href="#" class="nav-item" data-tab="markdown">MarkDown 编辑</a>
                 <a href="#" class="nav-item" data-tab="nav">常用导航</a>
             </nav>
             <div class="header-actions">
@@ -862,6 +865,315 @@
             </div>
         </section>
 
+        <!-- ============ MarkDown 编辑 ============ -->
+        <section class="tab-panel" data-panel="markdown">
+            <!-- 图标 sprite -->
+            <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+                <defs>
+                    <symbol id="md-undo" viewBox="0 0 24 24"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></symbol>
+                    <symbol id="md-redo" viewBox="0 0 24 24"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></symbol>
+                    <symbol id="md-list" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></symbol>
+                    <symbol id="md-list-ordered" viewBox="0 0 24 24"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></symbol>
+                    <symbol id="md-code" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></symbol>
+                    <symbol id="md-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+                    <symbol id="md-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></symbol>
+                    <symbol id="md-table" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></symbol>
+                    <symbol id="md-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+                    <symbol id="md-layout" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></symbol>
+                    <symbol id="md-chevron-down" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></symbol>
+                    <symbol id="md-chevron-left" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></symbol>
+                    <symbol id="md-chevron-right" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></symbol>
+                    <symbol id="md-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+                    <symbol id="md-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></symbol>
+                    <symbol id="md-trash" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></symbol>
+                    <symbol id="md-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+                    <symbol id="md-close" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+                    <symbol id="md-quote" viewBox="0 0 24 24"><path d="M7 7H4v6h3l-2 4h2l2-4V7zm10 0h-3v6h3l-2 4h2l2-4V7z"/></symbol>
+                    <symbol id="md-diagram" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M9 6h6a3 3 0 0 1 3 3v6"/></symbol>
+                    <symbol id="md-find" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></symbol>
+                    <symbol id="md-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></symbol>
+                </defs>
+            </svg>
+
+            <div class="md-app">
+                <!-- 顶部工具行 -->
+                <div class="md-topbar">
+                    <input type="text" id="mdFilename" class="md-filename" placeholder="未命名文档.md" title="文件名" />
+                    <div class="md-top-actions">
+                        <button class="md-action" id="mdSaveBtn" title="保存 (Ctrl+S)"><svg class="md-icon"><use href="#md-save"></use></svg> 保存</button>
+                        <label class="md-action" for="mdImportFile" title="导入 .md / .txt">导入</label>
+                        <input type="file" id="mdImportFile" accept=".md,.markdown,.txt" hidden />
+                        <div class="md-dropdown" id="mdExportDropdown">
+                            <button class="md-action" id="mdExportBtn" title="导出">导出 <svg class="md-icon md-icon-sm"><use href="#md-chevron-down"></use></svg></button>
+                            <div class="md-dropdown-menu" id="mdExportMenu">
+                                <div class="md-dropdown-item" data-md-export="md">导出 Markdown (.md)</div>
+                                <div class="md-dropdown-item" data-md-export="word">导出 Word (.doc)</div>
+                                <div class="md-dropdown-item" data-md-export="pdf">导出 PDF (.pdf)</div>
+                                <div class="md-dropdown-item" data-md-export="html">导出 HTML (.html)</div>
+                                <div class="md-dropdown-item" data-md-export="png">导出图片 (.png)</div>
+                            </div>
+                        </div>
+                        <button class="md-action" id="mdClearBtn" title="清空"><svg class="md-icon"><use href="#md-trash"></use></svg> 清空</button>
+                        <button class="md-action" id="mdHelpBtn" title="使用帮助"><svg class="md-icon"><use href="#md-help"></use></svg></button>
+                    </div>
+                </div>
+
+                <!-- 格式工具栏 -->
+                <div class="md-toolbar">
+                    <div class="md-format-group">
+                        <button class="md-tb-btn" data-md-act="undo" title="撤销 (Ctrl+Z)"><svg class="md-icon"><use href="#md-undo"></use></svg></button>
+                        <button class="md-tb-btn" data-md-act="redo" title="重做 (Ctrl+Y)"><svg class="md-icon"><use href="#md-redo"></use></svg></button>
+                        <span class="md-divider"></span>
+                        <button class="md-tb-btn md-text-btn" data-md-act="bold" title="加粗 (Ctrl+B)"><b>B</b></button>
+                        <button class="md-tb-btn md-text-btn" data-md-act="italic" title="斜体 (Ctrl+I)"><i>I</i></button>
+                        <button class="md-tb-btn md-text-btn" data-md-act="underline" title="下划线 (Ctrl+U)"><u>U</u></button>
+                        <button class="md-tb-btn md-text-btn" data-md-act="strike" title="删除线"><s>S</s></button>
+                        <button class="md-tb-btn md-text-btn" data-md-act="sub" title="下标">x₂</button>
+                        <button class="md-tb-btn md-text-btn" data-md-act="sup" title="上标">x²</button>
+                        <span class="md-divider"></span>
+                        <div class="md-dropdown" id="mdHeadingDropdown">
+                            <button class="md-tb-btn" data-md-heading-toggle title="标题">H <svg class="md-icon md-icon-sm"><use href="#md-chevron-down"></use></svg></button>
+                            <div class="md-dropdown-menu" id="mdHeadingMenu">
+                                <div class="md-dropdown-item" data-md-heading="1">H1 一级标题</div>
+                                <div class="md-dropdown-item" data-md-heading="2">H2 二级标题</div>
+                                <div class="md-dropdown-item" data-md-heading="3">H3 三级标题</div>
+                                <div class="md-dropdown-item" data-md-heading="4">H4 四级标题</div>
+                                <div class="md-dropdown-item" data-md-heading="5">H5 五级标题</div>
+                                <div class="md-dropdown-item" data-md-heading="6">H6 六级标题</div>
+                            </div>
+                        </div>
+                        <span class="md-divider"></span>
+                        <button class="md-tb-btn" data-md-act="quote" title="引用"><svg class="md-icon"><use href="#md-quote"></use></svg></button>
+                        <button class="md-tb-btn" data-md-act="ulist" title="无序列表"><svg class="md-icon"><use href="#md-list"></use></svg></button>
+                        <button class="md-tb-btn" data-md-act="olist" title="有序列表"><svg class="md-icon"><use href="#md-list-ordered"></use></svg></button>
+                        <button class="md-tb-btn" data-md-act="task" title="任务列表"><svg class="md-icon"><use href="#md-diagram"></use></svg></button>
+                        <span class="md-divider"></span>
+                        <button class="md-tb-btn" data-md-act="icode" title="行内代码"><svg class="md-icon"><use href="#md-code"></use></svg></button>
+                        <button class="md-tb-btn" data-md-act="code" title="代码块"><svg class="md-icon"><use href="#md-code"></use></svg><b>{ }</b></button>
+                        <button class="md-tb-btn" data-md-act="link" title="插入链接 (Ctrl+K)"><svg class="md-icon"><use href="#md-link"></use></svg></button>
+                        <button class="md-tb-btn" data-md-act="image" title="插入图片 (Ctrl+Shift+K)"><svg class="md-icon"><use href="#md-image"></use></svg></button>
+                        <div class="md-dropdown" id="mdTableDropdown">
+                            <button class="md-tb-btn" data-md-table-toggle title="插入表格"><svg class="md-icon"><use href="#md-table"></use></svg></button>
+                            <div class="md-dropdown-menu md-table-menu" id="mdTableMenu">
+                                <div class="md-table-grid" id="mdTableGrid"></div>
+                                <div class="md-table-size-label" id="mdTableSizeLabel">0 行 × 0 列</div>
+                            </div>
+                        </div>
+                        <button class="md-tb-btn" data-md-act="find" title="查找替换 (Ctrl+F)"><svg class="md-icon"><use href="#md-find"></use></svg></button>
+                        <button class="md-tb-btn" data-md-act="mermaid" title="插入 Mermaid 图表"><svg class="md-icon"><use href="#md-diagram"></use></svg></button>
+                    </div>
+                    <div class="md-toolbar-right">
+                        <div class="md-dropdown" id="mdViewDropdown">
+                            <button class="md-tb-btn" data-md-view-toggle title="视图布局"><svg class="md-icon"><use href="#md-layout"></use></svg> 视图 <svg class="md-icon md-icon-sm"><use href="#md-chevron-down"></use></svg></button>
+                            <div class="md-dropdown-menu" id="mdViewMenu">
+                                <div class="md-dropdown-item" data-md-view="both">编辑 + 预览</div>
+                                <div class="md-dropdown-item" data-md-view="edit">仅编辑</div>
+                                <div class="md-dropdown-item" data-md-view="preview">仅预览</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 主区域：编辑 + 预览 -->
+                <div class="md-main">
+                    <div class="md-pane md-editor-pane" id="mdEditorPane">
+                        <div class="md-pane-header">
+                            <span class="md-pane-title">编辑</span>
+                            <span class="md-pane-hint">支持 Markdown 语法</span>
+                            <button class="md-collapse-btn" id="mdEditorCollapse" title="收起编辑区"><svg class="md-icon md-icon-sm"><use href="#md-chevron-left"></use></svg></button>
+                        </div>
+                        <textarea id="mdEditor" class="md-editor" placeholder="在此输入 Markdown，右侧实时预览…" spellcheck="false"></textarea>
+                    </div>
+                    <div class="md-resizer" id="mdResizer"></div>
+                    <div class="md-pane md-preview-pane" id="mdPreviewPane">
+                        <div class="md-pane-header">
+                            <button class="md-collapse-btn" id="mdPreviewCollapse" title="收起预览区"><svg class="md-icon md-icon-sm"><use href="#md-chevron-right"></use></svg></button>
+                            <span class="md-pane-title">实时预览</span>
+                            <div class="md-view-switch">
+                                <button class="md-switch-btn active" data-md-mode="preview">预览</button>
+                                <button class="md-switch-btn" data-md-mode="source">源码</button>
+                            </div>
+                            <span id="mdWordCount" class="md-wordcount">0 字</span>
+                        </div>
+                        <div id="mdPreview" class="md-render markdown-body"></div>
+                        <textarea id="mdPreviewSource" class="md-preview-source" placeholder="在此编辑 Markdown 源码…" spellcheck="false" hidden></textarea>
+                    </div>
+                </div>
+
+                <!-- 状态栏 -->
+                <div class="md-statusbar">
+                    <span>自动保存已启用</span>
+                    <span id="mdSaveHint" class="md-save-hint">✓ 已保存</span>
+                    <span class="md-credit">功能参考 <a href="https://github.com/woyin2024/lengyi-markdown-editor" target="_blank" rel="noopener">https://github.com/woyin2024/lengyi-markdown-editor</a></span>
+                    <span class="md-status-right">Ctrl+S 保存 · Ctrl+B 加粗 · Ctrl+I 斜体 · Ctrl+U 下划线 · Ctrl+K 链接 · Ctrl+F 查找 · Tab 缩进</span>
+                </div>
+            </div>
+
+            <!-- 拖放遮罩 -->
+            <div class="md-drop-overlay" id="mdDropOverlay">
+                <div class="md-drop-message"><svg class="md-icon md-icon-lg"><use href="#md-upload"></use></svg> 释放以打开文件或插入图片</div>
+            </div>
+
+            <!-- 查找替换 -->
+            <div class="md-modal-overlay" id="mdFindModal">
+                <div class="md-modal">
+                    <div class="md-modal-header">
+                        <h3><svg class="md-icon md-icon-lg"><use href="#md-find"></use></svg> 查找与替换</h3>
+                        <button class="md-modal-close" data-md-close="mdFindModal"><svg class="md-icon"><use href="#md-close"></use></svg></button>
+                    </div>
+                    <div class="md-modal-body">
+                        <label for="mdFindInput">查找</label>
+                        <input type="text" id="mdFindInput" placeholder="要查找的内容" />
+                        <label for="mdReplaceInput">替换为</label>
+                        <input type="text" id="mdReplaceInput" placeholder="替换后的内容" />
+                        <div id="mdFindStatus" class="md-find-status"></div>
+                    </div>
+                    <div class="md-modal-footer">
+                        <button class="md-btn" data-md-close="mdFindModal">关闭</button>
+                        <button class="md-btn" id="mdReplaceAll">全部替换</button>
+                        <button class="md-btn" id="mdReplaceOne">替换</button>
+                        <button class="md-btn md-btn-primary" id="mdFindNext">查找下一个</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 插入图片 -->
+            <div class="md-modal-overlay" id="mdImageModal">
+                <div class="md-modal">
+                    <div class="md-modal-header">
+                        <h3><svg class="md-icon md-icon-lg"><use href="#md-image"></use></svg> 插入图片</h3>
+                        <button class="md-modal-close" data-md-close="mdImageModal"><svg class="md-icon"><use href="#md-close"></use></svg></button>
+                    </div>
+                    <div class="md-modal-body">
+                        <div class="md-img-tabs">
+                            <button class="md-img-tab active" data-md-imgtab="url">链接</button>
+                            <button class="md-img-tab" data-md-imgtab="upload">本地上传</button>
+                        </div>
+                        <div class="md-img-panel active" id="mdImgTabUrl">
+                            <label for="mdImageUrl">图片链接</label>
+                            <input type="url" id="mdImageUrl" placeholder="https://example.com/image.png" />
+                            <label for="mdImageAlt">描述文字</label>
+                            <input type="text" id="mdImageAlt" placeholder="图片描述" />
+                        </div>
+                        <div class="md-img-panel" id="mdImgTabUpload">
+                            <div class="md-upload-area">
+                                <p>点击选择或拖拽图片到此处（将转为 Base64 嵌入）</p>
+                                <input type="file" id="mdImageFile" accept="image/*" />
+                            </div>
+                            <div id="mdImagePreview" class="md-upload-preview"></div>
+                            <label for="mdImageUploadAlt">描述文字</label>
+                            <input type="text" id="mdImageUploadAlt" placeholder="图片描述" />
+                        </div>
+                        <p class="md-hint">本地图片以 Base64 嵌入文档，文件过大可能影响性能与保存。</p>
+                    </div>
+                    <div class="md-modal-footer">
+                        <button class="md-btn" data-md-close="mdImageModal">取消</button>
+                        <button class="md-btn md-btn-primary" id="mdImageConfirm">插入</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mermaid 图表 -->
+            <div class="md-modal-overlay" id="mdMermaidModal">
+                <div class="md-modal">
+                    <div class="md-modal-header">
+                        <h3><svg class="md-icon md-icon-lg"><use href="#md-diagram"></use></svg> 插入 Mermaid 图表</h3>
+                        <button class="md-modal-close" data-md-close="mdMermaidModal"><svg class="md-icon"><use href="#md-close"></use></svg></button>
+                    </div>
+                    <div class="md-modal-body">
+                        <label for="mdMermaidType">图表类型</label>
+                        <select id="mdMermaidType">
+                            <option value="mindmap">思维导图</option>
+                            <option value="flowchart">流程图</option>
+                            <option value="sequence">时序图</option>
+                        </select>
+                        <label for="mdMermaidCode">Mermaid 源码</label>
+                        <textarea id="mdMermaidCode" rows="10" placeholder="mindmap&#10;  root((主题))&#10;    子主题 A&#10;    子主题 B"></textarea>
+                        <p class="md-hint">支持 Mermaid 语法，插入后将在预览区自动渲染。</p>
+                    </div>
+                    <div class="md-modal-footer">
+                        <button class="md-btn" data-md-close="mdMermaidModal">取消</button>
+                        <button class="md-btn md-btn-primary" id="mdMermaidConfirm">插入</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 导出图片 -->
+            <div class="md-modal-overlay" id="mdImageExportModal">
+                <div class="md-modal">
+                    <div class="md-modal-header">
+                        <h3><svg class="md-icon md-icon-lg"><use href="#md-image"></use></svg> 导出图片</h3>
+                        <button class="md-modal-close" data-md-close="mdImageExportModal"><svg class="md-icon"><use href="#md-close"></use></svg></button>
+                    </div>
+                    <div class="md-modal-body">
+                        <label>分享比例</label>
+                        <div class="md-ratio-grid">
+                            <button class="md-ratio-btn active" data-md-ratio="9:16">9:16<br><small>手机竖屏</small></button>
+                            <button class="md-ratio-btn" data-md-ratio="4:5">4:5<br><small>小红书</small></button>
+                            <button class="md-ratio-btn" data-md-ratio="3:4">3:4<br><small>竖图</small></button>
+                            <button class="md-ratio-btn" data-md-ratio="1:1">1:1<br><small>方形</small></button>
+                            <button class="md-ratio-btn" data-md-ratio="16:9">16:9<br><small>横图</small></button>
+                        </div>
+                        <div class="md-option-row">
+                            <input type="checkbox" id="mdImageCropFit" />
+                            <label for="mdImageCropFit">过长时裁剪为固定比例（默认生成长图）</label>
+                        </div>
+                        <label>预览</label>
+                        <div id="mdExportImagePreviewWrap">
+                            <img id="mdExportImagePreview" alt="导出预览" style="display:none" />
+                        </div>
+                        <p class="md-hint">内容较长时将按内容高度生成长图，方便手机阅读。</p>
+                    </div>
+                    <div class="md-modal-footer">
+                        <button class="md-btn" data-md-close="mdImageExportModal">取消</button>
+                        <button class="md-btn" id="mdRefreshImagePreview">刷新预览</button>
+                        <button class="md-btn md-btn-primary" id="mdDownloadImage">下载 PNG</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 帮助 -->
+            <div class="md-modal-overlay" id="mdHelpModal">
+                <div class="md-modal">
+                    <div class="md-modal-header">
+                        <h3><svg class="md-icon md-icon-lg"><use href="#md-help"></use></svg> 使用帮助</h3>
+                        <button class="md-modal-close" data-md-close="mdHelpModal"><svg class="md-icon"><use href="#md-close"></use></svg></button>
+                    </div>
+                    <div class="md-modal-body">
+                        <p>这是一个即开即用的浏览器 Markdown 编辑器：左侧写作，右侧实时预览。内容会自动保存在浏览器本地，下次打开自动恢复。</p>
+                        <p><b>开始写作</b></p>
+                        <ul>
+                            <li>在左侧输入 Markdown，右侧同步渲染。</li>
+                            <li>用工具栏按钮快速插入标题、加粗、列表、引用、代码、链接、图片、表格、Mermaid 图表等。</li>
+                            <li>选中文字再点格式按钮，可自动包裹或替换选区。</li>
+                        </ul>
+                        <p><b>调整视图</b></p>
+                        <ul>
+                            <li>拖动中间分隔线调整左右宽度；点击标题栏的折叠按钮收起或展开区域。</li>
+                            <li>工具栏「视图」可切换“编辑 + 预览 / 仅编辑 / 仅预览”。</li>
+                            <li>右侧顶部的「源码」标签可直接改源码，切回「预览」看效果。</li>
+                        </ul>
+                        <p><b>保存与导出</b></p>
+                        <ul>
+                            <li>按 <code>Ctrl+S</code> 或点「保存」；编辑器每 500ms 自动保存一次。</li>
+                            <li>点「导入」导入本地 .md / .txt，或直接把文件拖进窗口。</li>
+                            <li>点「导出」导出 Markdown、HTML、Word、PDF（打印另存为）或图片。</li>
+                        </ul>
+                        <p><b>数学公式</b>：支持 <code>$...$</code> 行内公式和 <code>$$...$$</code> 块级公式（KaTeX 渲染）。</p>
+                        <p><b>常用快捷键</b>：<code>Ctrl+S</code> 保存，<code>Ctrl+Z</code> 撤销，<code>Ctrl+Y</code> 重做，<code>Ctrl+B</code> 加粗，<code>Ctrl+I</code> 斜体，<code>Ctrl+U</code> 下划线，<code>Ctrl+K</code> 链接，<code>Ctrl+Shift+K</code> 图片，<code>Ctrl+F</code> 查找，<code>Tab</code> 插入 4 空格缩进。</p>
+                    </div>
+                    <div class="md-modal-footer">
+                        <button class="md-btn md-btn-primary" data-md-close="mdHelpModal">知道了</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 导出图片隐藏舞台 -->
+            <div id="mdExportStage" class="md-export-stage" aria-hidden="true">
+                <div id="mdExportContent"></div>
+            </div>
+        </section>
+
         <section class="features">
             <h2>关于本工具箱</h2>
             <div class="feature-grid">
@@ -888,7 +1200,11 @@
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dom-to-image-more@3.5.0/dist/dom-to-image-more.min.js"></script>
     <script src="script.js?v=85"></script>
+    <script src="markdown-editor.js?v=1"></script>
 
     <!-- 回到顶部按钮 -->
     <button id="backToTop" title="回到顶部" aria-label="回到顶部">

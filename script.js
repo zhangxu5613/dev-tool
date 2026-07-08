@@ -1178,6 +1178,7 @@
             p.classList.toggle('active', p.dataset.panel === tab);
         });
         localStorage.setItem('dev-tool-tab', tab);
+        window.dispatchEvent(new CustomEvent('devtool:tabchange', { detail: { tab } }));
     }
 
     mainNav.addEventListener('click', (e) => {
