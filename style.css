@@ -1362,6 +1362,21 @@ textarea::-webkit-scrollbar-track,
 
 .kv .mini-btn { margin-left: auto; }
 
+/* 隐藏日历选择器，通过按钮触发 showPicker() */
+#dtPicker {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+#dtCalendarBtn {
+    font-size: 16px;
+    padding: 0 10px;
+    cursor: pointer;
+}
+
 .sub-section {
     margin-top: 10px;
     padding-top: 18px;

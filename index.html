@@ -421,7 +421,9 @@
                     <div class="form-block">
                         <label>日期 → 时间戳</label>
                         <div class="row">
-                            <input type="datetime-local" id="dtInput" step="1" />
+                            <input type="text" id="dtInput" placeholder="粘贴或输入日期，如 2025-07-09 14:30:00" autocomplete="off" />
+                            <button class="mini-btn" id="dtCalendarBtn" title="日历选择">📅</button>
+                            <input type="datetime-local" id="dtPicker" step="1" tabindex="-1" aria-hidden="true" />
                             <button class="btn btn-primary" data-action="date-to-ts">转换</button>
                         </div>
                         <div class="kv">

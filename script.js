@@ -1216,37 +1216,205 @@
     setInterval(refreshNow, 1000);
     refreshNow();
 
-    document.querySelector('[data-action="ts-to-date"]').addEventListener('click', () => {
-        const raw = document.getElementById('tsInput').value.trim();
-        if (!raw) return;
-        const unit = document.getElementById('tsUnit').value;
+    // ========== 时间戳 → 日期（自动转换） ==========
+    const tsInput = document.getElementById('tsInput');
+    const tsUnit = document.getElementById('tsUnit');
+    const tsLocal = document.getElementById('tsLocal');
+    const tsUtc = document.getElementById('tsUtc');
+    const tsIso = document.getElementById('tsIso');
+
+    function tsToDate() {
+        const raw = tsInput.value.trim();
+        if (!raw) { tsLocal.textContent = '-'; tsUtc.textContent = '-'; tsIso.textContent = '-'; return; }
+        const unit = tsUnit.value;
         let n = Number(raw);
-        if (isNaN(n)) { showToast('时间戳不合法', 'error'); return; }
+        if (isNaN(n) || raw === '') { tsLocal.textContent = '-'; tsUtc.textContent = '-'; tsIso.textContent = '-'; return; }
         let ms;
         if (unit === 's') ms = n * 1000;
         else if (unit === 'ms') ms = n;
         else ms = raw.length >= 13 ? n : n * 1000; // auto
         const d = new Date(ms);
-        if (isNaN(d.getTime())) { showToast('无法解析为日期', 'error'); return; }
-        document.getElementById('tsLocal').textContent = fmtDate(d);
-        document.getElementById('tsUtc').textContent = fmtUTC(d) + ' (UTC)';
-        document.getElementById('tsIso').textContent = d.toISOString();
-    });
+        if (isNaN(d.getTime())) { tsLocal.textContent = '-'; tsUtc.textContent = '-'; tsIso.textContent = '-'; return; }
+        tsLocal.textContent = fmtDate(d);
+        tsUtc.textContent = fmtUTC(d) + ' (UTC)';
+        tsIso.textContent = d.toISOString();
+    }
 
+    let tsInputTimer;
+    tsInput.addEventListener('input', () => {
+        clearTimeout(tsInputTimer);
+        tsInputTimer = setTimeout(tsToDate, 300);
+    });
+    tsUnit.addEventListener('change', tsToDate);
+    document.querySelector('[data-action="ts-to-date"]').addEventListener('click', tsToDate);
+
+    // ========== 日期 → 时间戳（支持粘贴 + 自动识别格式 + 日历） ==========
+
+    const dtInput = document.getElementById('dtInput');
+    const dtPicker = document.getElementById('dtPicker');
+    const dtTsSec = document.getElementById('dtTsSec');
+    const dtTsMs = document.getElementById('dtTsMs');
+
+    // 格式自动识别
+    function parseDateInput(str) {
+        if (!str || !str.trim()) return null;
+        str = str.trim();
+
+        // 0a) ISO 8601 含时区信息（T...Z / T...+08:00），直接解析，无需后续处理
+        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(str)) {
+            const d = new Date(str);
+            if (!isNaN(d.getTime())) return d;
+        }
+
+        // 0b) 提取末尾时区信息（人工标注或偏移量）
+        let tzOffset = 0;
+        let tzKnown = false;
+        const tzMatch = str.match(/\s*[\(（]?\s*(UTC|GMT)\s*[\)）]?\s*$/i);
+        if (tzMatch) {
+            tzOffset = 0;
+            tzKnown = true;
+            str = str.slice(0, str.length - tzMatch[0].length).trim();
+        } else {
+            const offsetMatch = str.match(/\s*([+-])(\d{1,2}):?(\d{2})?\s*$/);
+            if (offsetMatch) {
+                const sign = offsetMatch[1] === '+' ? 1 : -1;
+                const hours = parseInt(offsetMatch[2], 10);
+                const mins = parseInt(offsetMatch[3] || '0', 10);
+                tzOffset = sign * (hours * 60 + mins);
+                tzKnown = true;
+                str = str.slice(0, str.length - offsetMatch[0].length).trim();
+            }
+        }
+
+        function adjustTz(d) {
+            if (!d || isNaN(d.getTime())) return d;
+            if (!tzKnown) return d;
+            // d 是浏览器按本地时区解析得到的；校正到用户指定的时区
+            return new Date(d.getTime() + (-d.getTimezoneOffset() - tzOffset) * 60000);
+        }
+
+        // 1) Unix 时间戳（纯数字）
+        if (/^\d+$/.test(str)) {
+            const n = parseInt(str, 10);
+            if (n > 1e14 && n < 2e14) return new Date(n);           // 微秒
+            if (n > 1e11 && n < 1e14) return new Date(n);            // 毫秒
+            if (n > 1e8  && n < 1e11) return new Date(n * 1000);    // 秒
+            if (n < 1e8)                return new Date(n * 1000);   // 秒（较早时间）
+            // 否则不是有效时间戳，往下走
+        }
+
+        // 2) 中文字符格式：YYYY年MM月DD日 HH:mm:ss
+        const cnMatch = str.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+        if (cnMatch) {
+            let rest = str.slice(cnMatch.index + cnMatch[0].length);
+            const timeMatch = rest.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+            return adjustTz(new Date(+cnMatch[1], +cnMatch[2] - 1, +cnMatch[3],
+                timeMatch ? +timeMatch[1] : 0,
+                timeMatch ? +timeMatch[2] : 0,
+                timeMatch ? +(timeMatch[3] || 0) : 0));
+        }
+
+        // 3) 英文月份缩写：Jan 15, 2025 14:30、15 Jan 2025
+        const enMatch = str.match(/(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})/);
+        if (enMatch) {
+            const d = new Date(str);
+            if (!isNaN(d.getTime())) return adjustTz(d);
+        }
+
+        // 5) 标准化分隔符：将常见分隔符统一为 -
+        let normalized = str
+            .replace(/\//g, '-')       // 2025/01/15 → 2025-01-15
+            .replace(/\s+/g, 'T');     // 2025-01-15 14:30 → 2025-01-15T14:30
+
+        // 处理点号分隔：仅替换日期中的点（如 2025.01.15），不影响毫秒中的点
+        if (!/\d{2}:\d{2}:\d{2}\.\d/.test(str)) {
+            normalized = normalized.replace(/\./g, '-');
+        }
+
+        let d = new Date(normalized);
+        if (!isNaN(d.getTime())) return adjustTz(d);
+
+        // 6) 移除 "T" 再试（处理已含 T 但需要空格分隔的情况）
+        normalized = str.replace(/\//g, '-').replace(/\s+/g, ' ');
+        if (!/\d{2}:\d{2}:\d{2}\.\d/.test(str)) {
+            normalized = normalized.replace(/\./g, '-');
+        }
+        d = new Date(normalized);
+        if (!isNaN(d.getTime())) return adjustTz(d);
+
+        // 7) 尝试 YYYYMMDD / YYYYMMDDHHmmss
+        const compactMatch = str.match(/^(\d{4})(\d{2})(\d{2})(?:(\d{2})(\d{2})(\d{2}))?$/);
+        if (compactMatch) {
+            return adjustTz(new Date(+compactMatch[1], +compactMatch[2] - 1, +compactMatch[3],
+                + (compactMatch[4] || 0), + (compactMatch[5] || 0), + (compactMatch[6] || 0)));
+        }
+
+        return null;
+    }
+
+    // 执行日期 → 时间戳转换
+    function dateToTs(v) {
+        if (!v || !v.trim()) {
+            dtTsSec.textContent = '-';
+            dtTsMs.textContent = '-';
+            return;
+        }
+        const d = parseDateInput(v);
+        if (!d || isNaN(d.getTime())) {
+            dtTsSec.textContent = '-';
+            dtTsMs.textContent = '-';
+            return;
+        }
+        dtTsSec.textContent = Math.floor(d.getTime() / 1000);
+        dtTsMs.textContent = d.getTime();
+    }
+
+    // 转换按钮
     document.querySelector('[data-action="date-to-ts"]').addEventListener('click', () => {
-        const v = document.getElementById('dtInput').value;
-        if (!v) { showToast('请先选择日期'); return; }
-        const d = new Date(v);
-        if (isNaN(d.getTime())) { showToast('日期不合法', 'error'); return; }
-        document.getElementById('dtTsSec').textContent = Math.floor(d.getTime() / 1000);
-        document.getElementById('dtTsMs').textContent = d.getTime();
+        const v = dtInput.value;
+        if (!v.trim()) { showToast('请粘贴或输入日期'); return; }
+        const d = parseDateInput(v);
+        if (!d || isNaN(d.getTime())) { showToast('无法识别日期格式，支持：2025-07-09 14:30、2025/07/09、2025年7月9日、时间戳 等', 'warning'); return; }
+        dateToTs(v);
     });
 
-    // 初始化当前时间到 datetime-local 输入
+    // 实时输入时自动转换（300ms 防抖）
+    let dtDebounce;
+    dtInput.addEventListener('input', () => {
+        clearTimeout(dtDebounce);
+        dtDebounce = setTimeout(() => dateToTs(dtInput.value), 300);
+    });
+
+    // Enter 键立即转换
+    dtInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { clearTimeout(dtDebounce); dateToTs(dtInput.value); }
+    });
+
+    // 日历按钮：触发隐藏的 datetime-local 选择器
+    document.getElementById('dtCalendarBtn').addEventListener('click', () => {
+        if (dtPicker.showPicker) {
+            // 先设当前值映射到 picker
+            const cur = parseDateInput(dtInput.value) || new Date();
+            dtPicker.value = `${cur.getFullYear()}-${pad(cur.getMonth() + 1)}-${pad(cur.getDate())}T${pad(cur.getHours())}:${pad(cur.getMinutes())}:${pad(cur.getSeconds())}`;
+            dtPicker.showPicker();
+        } else {
+            dtPicker.focus();
+            dtPicker.click();
+        }
+    });
+    dtPicker.addEventListener('change', () => {
+        if (dtPicker.value) {
+            const d = new Date(dtPicker.value);
+            dtInput.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+            dateToTs(dtInput.value);
+        }
+    });
+
+    // 初始化当前时间
     (function initDt() {
         const d = new Date();
-        const v = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-        document.getElementById('dtInput').value = v;
+        dtInput.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        dateToTs(dtInput.value);
     })();
 
     // ---------- 自由字段时间 → Unix 时间戳 ----------
