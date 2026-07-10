@@ -1094,6 +1094,27 @@ textarea::-webkit-scrollbar-track,
 }
 .options .diff-actions .btn { margin: 0; }
 
+/* JSON 自动识别徽标 */
+.options .json-opts {
+    display: inline-flex;
+    gap: 12px;
+    align-items: center;
+}
+.options .json-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #fef3c7;
+    color: #d97706;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+[data-theme="dark"] .options .json-badge {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+}
+
 .chk {
     display: inline-flex;
     align-items: center;

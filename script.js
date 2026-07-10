@@ -2608,6 +2608,7 @@
     const diffRightPreview = document.getElementById('diffRightPreview');
     const diffStatus = document.getElementById('diffStatus');
     const diffSummary = document.getElementById('diffSummary');
+    const diffJsonOpts = document.getElementById('diffJsonOpts');
 
     function normalize(v, ignoreOrder, ignoreCase) {
         if (Array.isArray(v)) {
@@ -2836,6 +2837,7 @@
         const len = target.value.length;
         try { target.setSelectionRange(len, len); } catch (_) {}
         document.getElementById('diffEdit').style.display = 'none';
+        _diffInEdit = true;  // 标记进入编辑模式，input 时不自动对比
     }
 
     // "编辑"按钮：回到编辑模式（恢复原始输入）
@@ -2849,26 +2851,46 @@
 
     // 用户编辑 textarea 时，隐藏预览层并防抖触发自动对比
     let _diffAutoTimer = null;
+    let _diffInEdit = false;  // 是否处于编辑模式（双击进入），此时不自动对比
+    function detectJsonMode() {
+        const lv = diffLeftEl.value.trim();
+        const rv = diffRightEl.value.trim();
+        const bothJson = lv && rv && (() => {
+            try { JSON.parse(lv); return true; } catch (_) { return false; }
+        })() && (() => {
+            try { JSON.parse(rv); return true; } catch (_) { return false; }
+        })();
+        diffJsonOpts.style.display = bothJson ? '' : 'none';
+        return bothJson;
+    }
     function scheduleAutoDiff() {
         if (_diffAutoTimer) clearTimeout(_diffAutoTimer);
         _diffAutoTimer = setTimeout(() => {
             _diffAutoTimer = null;
-            // 两边都有内容才自动跑；只有一侧内容时清理状态
             const l = diffLeftEl.value.trim();
             const r = diffRightEl.value.trim();
-            if (!l && !r) {
+            if (!l || !r) {
+                // 任一侧为空时不自动对比
+                hidePreview('left');
+                hidePreview('right');
                 diffSummary.hidden = true;
                 document.getElementById('diffUnified').hidden = true;
                 document.getElementById('diffEdit').style.display = 'none';
-                diffStatus.textContent = '就绪';
+                diffJsonOpts.style.display = 'none';
+                diffStatus.textContent = (!l && !r) ? '就绪' : '请先在两侧都输入内容';
                 diffStatus.style.color = '';
                 return;
             }
+            detectJsonMode();
             runDiff();
         }, 300);
     }
-    diffLeftEl.addEventListener('input', () => { hidePreview('left'); scheduleAutoDiff(); });
-    diffRightEl.addEventListener('input', () => { hidePreview('right'); scheduleAutoDiff(); });
+    diffLeftEl.addEventListener('input', () => { hidePreview('left'); if (!_diffInEdit) scheduleAutoDiff(); });
+    diffRightEl.addEventListener('input', () => { hidePreview('right'); if (!_diffInEdit) scheduleAutoDiff(); });
+
+    // 编辑模式下，失焦时退出编辑并触发对比
+    diffLeftEl.addEventListener('blur', () => { if (_diffInEdit) { _diffInEdit = false; runDiff(); } });
+    diffRightEl.addEventListener('blur', () => { if (_diffInEdit) { _diffInEdit = false; runDiff(); } });
 
     // ---- 文本 Diff（行级 LCS + 字符级 LCS） ----
     function charDiff(a, b) {
@@ -3069,7 +3091,7 @@
         _diffLeftRaw = diffLeftEl.value;
         _diffRightRaw = diffRightEl.value;
 
-        const isJsonMode = document.getElementById('diffIsJson').checked;
+        const isJsonMode = detectJsonMode();
 
         // 清空所有结果区
         hidePreview('left');
@@ -3192,15 +3214,6 @@
 
     document.getElementById('diffIgnoreOrder').addEventListener('change', runDiff);
     document.getElementById('diffIgnoreCase').addEventListener('change', runDiff);
-
-    // JSON 模式切换：显隐 JSON 专属选项
-    const diffIsJson = document.getElementById('diffIsJson');
-    const diffJsonOpts = document.getElementById('diffJsonOpts');
-    function toggleJsonOpts() {
-        diffJsonOpts.style.display = diffIsJson.checked ? '' : 'none';
-        runDiff();
-    }
-    diffIsJson.addEventListener('change', toggleJsonOpts);
 
     // ---- Diff 导航：上一个/下一个差异 ----
     let _diffNavIndex = -1;
