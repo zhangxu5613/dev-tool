@@ -2824,32 +2824,299 @@
         pv.hidden = true;
     }
 
-    // "编辑"按钮：回到编辑模式（恢复原始输入）
-    document.getElementById('diffEdit').addEventListener('click', () => {
+    // 进入编辑模式：恢复原始输入并把两侧预览切回 textarea
+    function enterDiffEdit(focusSide) {
         hidePreview('left');
         hidePreview('right');
-        diffLeftEl.value = _diffLeftRaw;
-        diffRightEl.value = _diffRightRaw;
-        diffLeftEl.focus();
+        if (_diffLeftRaw) diffLeftEl.value = _diffLeftRaw;
+        if (_diffRightRaw) diffRightEl.value = _diffRightRaw;
+        const target = focusSide === 'right' ? diffRightEl : diffLeftEl;
+        target.focus();
+        // 光标移到末尾，便于继续输入
+        const len = target.value.length;
+        try { target.setSelectionRange(len, len); } catch (_) {}
         document.getElementById('diffEdit').style.display = 'none';
-    });
+    }
 
-    // 用户编辑 textarea 时，隐藏预览层
-    diffLeftEl.addEventListener('input', () => hidePreview('left'));
-    diffRightEl.addEventListener('input', () => hidePreview('right'));
+    // "编辑"按钮：回到编辑模式（恢复原始输入）
+    document.getElementById('diffEdit').addEventListener('click', () => enterDiffEdit('left'));
+
+    // 双击预览区：直接进入编辑模式（编辑该侧）
+    diffLeftPreview.addEventListener('dblclick', () => enterDiffEdit('left'));
+    diffRightPreview.addEventListener('dblclick', () => enterDiffEdit('right'));
+    diffLeftPreview.title = '双击可回到编辑模式';
+    diffRightPreview.title = '双击可回到编辑模式';
+
+    // 用户编辑 textarea 时，隐藏预览层并防抖触发自动对比
+    let _diffAutoTimer = null;
+    function scheduleAutoDiff() {
+        if (_diffAutoTimer) clearTimeout(_diffAutoTimer);
+        _diffAutoTimer = setTimeout(() => {
+            _diffAutoTimer = null;
+            // 两边都有内容才自动跑；只有一侧内容时清理状态
+            const l = diffLeftEl.value.trim();
+            const r = diffRightEl.value.trim();
+            if (!l && !r) {
+                diffSummary.hidden = true;
+                document.getElementById('diffUnified').hidden = true;
+                document.getElementById('diffEdit').style.display = 'none';
+                diffStatus.textContent = '就绪';
+                diffStatus.style.color = '';
+                return;
+            }
+            runDiff();
+        }, 300);
+    }
+    diffLeftEl.addEventListener('input', () => { hidePreview('left'); scheduleAutoDiff(); });
+    diffRightEl.addEventListener('input', () => { hidePreview('right'); scheduleAutoDiff(); });
+
+    // ---- 文本 Diff（行级 LCS + 字符级 LCS） ----
+    function charDiff(a, b) {
+        // 快速剥离共同前缀/后缀，减小 LCS 规模
+        let pre = 0;
+        const minLen = Math.min(a.length, b.length);
+        while (pre < minLen && a[pre] === b[pre]) pre++;
+        let suf = 0;
+        while (suf < minLen - pre && a[a.length - 1 - suf] === b[b.length - 1 - suf]) suf++;
+
+        const aMid = a.slice(pre, a.length - suf);
+        const bMid = b.slice(pre, b.length - suf);
+        const commonPre = a.slice(0, pre);
+        const commonSuf = suf > 0 ? a.slice(a.length - suf) : '';
+
+        function coreDiff(x, y) {
+            const mx = x.length, my = y.length;
+            if (mx === 0 && my === 0) return { htmlA: '', htmlB: '' };
+            if (mx === 0) return { htmlA: '', htmlB: `<span class="diff-char">${escapeHTML(y)}</span>` };
+            if (my === 0) return { htmlA: `<span class="diff-char">${escapeHTML(x)}</span>`, htmlB: '' };
+            // LCS 表超过 4,000,000 单元时降级：整行标记
+            if (mx * my > 4000000) {
+                return {
+                    htmlA: `<span class="diff-char">${escapeHTML(x)}</span>`,
+                    htmlB: `<span class="diff-char">${escapeHTML(y)}</span>`
+                };
+            }
+            const dp = new Array(mx + 1);
+            for (let i = 0; i <= mx; i++) dp[i] = new Int32Array(my + 1);
+            for (let i = 1; i <= mx; i++) {
+                for (let j = 1; j <= my; j++) {
+                    dp[i][j] = x[i - 1] === y[j - 1]
+                        ? dp[i - 1][j - 1] + 1
+                        : Math.max(dp[i - 1][j], dp[i][j - 1]);
+                }
+            }
+            const revA = [], revB = [];
+            let i = mx, j = my;
+            while (i > 0 || j > 0) {
+                if (i > 0 && j > 0 && x[i - 1] === y[j - 1]) {
+                    revA.push({ same: true, c: x[i - 1] });
+                    revB.push({ same: true, c: y[j - 1] });
+                    i--; j--;
+                } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+                    revA.push({ same: false, c: '' });
+                    revB.push({ same: false, c: y[j - 1] });
+                    j--;
+                } else {
+                    revA.push({ same: false, c: x[i - 1] });
+                    revB.push({ same: false, c: '' });
+                    i--;
+                }
+            }
+            revA.reverse(); revB.reverse();
+            function mergeSegs(segs) {
+                const m = [];
+                for (const s of segs) {
+                    const last = m[m.length - 1];
+                    if (last && last.same === s.same) last.c += s.c;
+                    else m.push({ same: s.same, c: s.c });
+                }
+                return m;
+            }
+            function toHTML(segs) {
+                return segs.map(s => s.same ? escapeHTML(s.c) : `<span class="diff-char">${escapeHTML(s.c)}</span>`).join('');
+            }
+            return { htmlA: toHTML(mergeSegs(revA)), htmlB: toHTML(mergeSegs(revB)) };
+        }
+
+        const mid = coreDiff(aMid, bMid);
+        const preEsc = escapeHTML(commonPre);
+        const sufEsc = escapeHTML(commonSuf);
+        const htmlA = (preEsc + mid.htmlA + sufEsc) || '&nbsp;';
+        const htmlB = (preEsc + mid.htmlB + sufEsc) || '&nbsp;';
+        return { htmlA, htmlB };
+    }
+
+    function textDiff(aText, bText) {
+        const a = aText.split('\n');
+        const b = bText.split('\n');
+        const m = a.length, n = b.length;
+
+        // 行级 LCS
+        const dp = new Array(m + 1);
+        for (let i = 0; i <= m; i++) dp[i] = new Int32Array(n + 1);
+        for (let i = 1; i <= m; i++) {
+            for (let j = 1; j <= n; j++) {
+                dp[i][j] = a[i - 1] === b[j - 1]
+                    ? dp[i - 1][j - 1] + 1
+                    : Math.max(dp[i - 1][j], dp[i][j - 1]);
+            }
+        }
+
+        // 回朔 → 左右对齐行
+        const leftLines = [], rightLines = [];
+        let i = m, j = n;
+        while (i > 0 || j > 0) {
+            if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
+                leftLines.unshift({ type: 'same', text: a[i - 1] });
+                rightLines.unshift({ type: 'same', text: b[j - 1] });
+                i--; j--;
+            } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+                leftLines.unshift({ type: 'pad', text: '' });
+                rightLines.unshift({ type: 'add', text: b[j - 1] });
+                j--;
+            } else {
+                leftLines.unshift({ type: 'del', text: a[i - 1] });
+                rightLines.unshift({ type: 'pad', text: '' });
+                i--;
+            }
+        }
+
+        // 合并交错 del/add：del/pad + pad/add 或 pad/add + del/pad → 合并为 del/add
+        const mergedL = [], mergedR = [];
+        let stats = { add: 0, del: 0, same: 0 };
+        for (let k = 0; k < leftLines.length; k++) {
+            const L = leftLines[k], R = rightLines[k];
+            // 尝试合并：左 del 右空 + 下一步左空右 add → 合并（旧→新）
+            if (L.type === 'del' && R.type === 'pad' &&
+                k + 1 < leftLines.length && leftLines[k + 1].type === 'pad' && rightLines[k + 1].type === 'add') {
+                const diff = charDiff(L.text, rightLines[k + 1].text);
+                L.type = 'del'; L.html = diff.htmlA; L.inline = true;
+                rightLines[k + 1].type = 'add'; rightLines[k + 1].html = diff.htmlB; rightLines[k + 1].inline = true;
+                mergedL.push(L); mergedR.push(rightLines[k + 1]);
+                stats.del++; stats.add++; k++;
+            }
+            // 尝试合并：左空 右 add + 下一步左 del 右空 → 合并（新→旧）
+            else if (L.type === 'pad' && R.type === 'add' &&
+                k + 1 < leftLines.length && leftLines[k + 1].type === 'del' && rightLines[k + 1].type === 'pad') {
+                const diff = charDiff(leftLines[k + 1].text, R.text);
+                leftLines[k + 1].type = 'del'; leftLines[k + 1].html = diff.htmlA; leftLines[k + 1].inline = true;
+                R.type = 'add'; R.html = diff.htmlB; R.inline = true;
+                mergedL.push(leftLines[k + 1]); mergedR.push(R);
+                stats.del++; stats.add++; k++;
+            }
+            // 未合并的 del
+            else if (L.type === 'del') {
+                L.html = `<span class="diff-char">${escapeHTML(L.text)}</span>` || '&nbsp;';
+                R.html = '&nbsp;';
+                mergedL.push(L); mergedR.push(R);
+                stats.del++;
+            }
+            // 未合并的 add
+            else if (R.type === 'add') {
+                L.html = '&nbsp;';
+                R.html = `<span class="diff-char">${escapeHTML(R.text)}</span>` || '&nbsp;';
+                mergedL.push(L); mergedR.push(R);
+                stats.add++;
+            }
+            // same 或双 pad
+            else {
+                L.html = L.type === 'same' ? (escapeHTML(L.text) || '&nbsp;') : '&nbsp;';
+                R.html = R.type === 'same' ? (escapeHTML(R.text) || '&nbsp;') : '&nbsp;';
+                mergedL.push(L); mergedR.push(R);
+                if (L.type === 'same') stats.same++;
+            }
+        }
+
+        // 裁剪上下文：只保留差异行 ±3 行（基于合并后的结果）
+        // 但若两边完全一致（无 add/del），保留全部行，避免用户误以为数据丢失
+        const CTX = 3;
+        const hasDiff = mergedL.some(l => l.type !== 'same' && l.type !== 'pad')
+            || mergedR.some(r => r.type !== 'same' && r.type !== 'pad');
+        const keep = new Set();
+        if (hasDiff) {
+            for (let k = 0; k < mergedL.length; k++) {
+                if (mergedL[k].type !== 'same') {
+                    for (let t = Math.max(0, k - CTX); t <= Math.min(mergedL.length - 1, k + CTX); t++) keep.add(t);
+                }
+            }
+        } else {
+            for (let k = 0; k < mergedL.length; k++) keep.add(k);
+        }
+        const L = [], R = [];
+        stats = { add: 0, del: 0, same: 0 };
+        for (let k = 0; k < mergedL.length; k++) {
+            if (!keep.has(k)) continue;
+            L.push(mergedL[k]);
+            R.push(mergedR[k]);
+            if (mergedL[k].type === 'del') stats.del++;
+            if (mergedR[k].type === 'add') stats.add++;
+            if (mergedL[k].type === 'same') stats.same++;
+        }
+
+        return { leftLines: L, rightLines: R, stats };
+    }
+
+    function textLineToHTML(lines) {
+        return lines.map(l => {
+            const extra = l.inline ? ' dline-inline' : '';
+            return `<div class="dline dline-txt${extra} ${l.type}">${l.html}</div>`;
+        }).join('');
+    }
 
     function runDiff() {
         const lraw = diffLeftEl.value.trim();
         const rraw = diffRightEl.value.trim();
         _diffLeftRaw = diffLeftEl.value;
         _diffRightRaw = diffRightEl.value;
+
+        const isJsonMode = document.getElementById('diffIsJson').checked;
+
+        // 清空所有结果区
+        hidePreview('left');
+        hidePreview('right');
+        diffSummary.hidden = true;
+        document.getElementById('diffNav').style.display = 'none';
+        document.getElementById('diffEdit').style.display = 'none';
+        document.getElementById('diffUnified').hidden = true;
+        _diffNavItems = [];
+        _diffNavIndex = -1;
+
         if (!lraw && !rraw) {
-            hidePreview('left'); hidePreview('right');
-            diffSummary.hidden = true;
-            diffStatus.textContent = '请在左右两侧粘贴 JSON';
+            diffStatus.textContent = isJsonMode ? '请在左右两侧粘贴 JSON' : '请在左右两侧粘贴文本';
             diffStatus.style.color = '';
             return;
         }
+
+        if (!isJsonMode) {
+            // ---- 文本 Diff 模式：双栏并排 ----
+            const { leftLines, rightLines, stats } = textDiff(lraw + '\n', rraw + '\n');
+
+            diffLeftPreview.className = 'diff-preview side-left';
+            diffRightPreview.className = 'diff-preview side-right';
+            diffLeftPreview.innerHTML = textLineToHTML(leftLines) || '<div class="dline">&nbsp;</div>';
+            diffRightPreview.innerHTML = textLineToHTML(rightLines) || '<div class="dline">&nbsp;</div>';
+            showPreview('left');
+            showPreview('right');
+            document.getElementById('diffEdit').style.display = '';
+
+            document.getElementById('diffAddCnt').textContent = stats.add;
+            document.getElementById('diffDelCnt').textContent = stats.del;
+            document.getElementById('diffModCnt').textContent = '0';
+            document.getElementById('diffSameCnt').textContent = stats.same;
+            diffSummary.hidden = false;
+
+            const totalDiff = stats.add + stats.del;
+            if (totalDiff === 0) {
+                diffStatus.textContent = '两份文本完全一致 ✓';
+                diffStatus.style.color = 'var(--success)';
+            } else {
+                diffStatus.textContent = `发现 ${totalDiff} 处差异（+${stats.add} −${stats.del}）`;
+                diffStatus.style.color = 'var(--warning)';
+            }
+            return;
+        }
+
+        // ---- JSON Diff 模式（原逻辑） ----
         let left, right;
         try { left = lraw ? JSON.parse(lraw) : null; }
         catch (e) {
@@ -2886,7 +3153,6 @@
         document.getElementById('diffSameCnt').textContent = stats.same;
         diffSummary.hidden = false;
 
-        // 收集差异行，用于导航
         collectDiffNavItems();
 
         const totalDiff = stats.add + stats.del + stats.mod;
@@ -2912,6 +3178,7 @@
         diffLeftEl.value = '';
         diffRightEl.value = '';
         diffSummary.hidden = true;
+        document.getElementById('diffUnified').hidden = true;
         diffStatus.textContent = '就绪';
         diffStatus.style.color = '';
         _diffNavItems = [];
@@ -2925,6 +3192,15 @@
 
     document.getElementById('diffIgnoreOrder').addEventListener('change', runDiff);
     document.getElementById('diffIgnoreCase').addEventListener('change', runDiff);
+
+    // JSON 模式切换：显隐 JSON 专属选项
+    const diffIsJson = document.getElementById('diffIsJson');
+    const diffJsonOpts = document.getElementById('diffJsonOpts');
+    function toggleJsonOpts() {
+        diffJsonOpts.style.display = diffIsJson.checked ? '' : 'none';
+        runDiff();
+    }
+    diffIsJson.addEventListener('change', toggleJsonOpts);
 
     // ---- Diff 导航：上一个/下一个差异 ----
     let _diffNavIndex = -1;

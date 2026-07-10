@@ -1084,6 +1084,16 @@ textarea::-webkit-scrollbar-track,
     align-items: center;
 }
 
+/* Diff 面板按钮组：固定推到右侧，不随可选项显隐左右晃动 */
+.options .diff-actions {
+    margin-left: auto;
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: nowrap;
+}
+.options .diff-actions .btn { margin: 0; }
+
 .chk {
     display: inline-flex;
     align-items: center;
@@ -1714,6 +1724,7 @@ textarea::-webkit-scrollbar-track,
     font-family: "SF Mono", Menlo, Consolas, monospace;
     font-size: 15px;
     line-height: 1.8;
+    cursor: text;
     overflow: auto;
     white-space: pre;
     box-sizing: border-box;
@@ -1830,6 +1841,137 @@ textarea::-webkit-scrollbar-track,
     border-radius: 3px;
     background-color: rgba(99, 102, 241, 0.18) !important;
 }
+
+/* 文本 Diff 行样式（无缩进，自动换行） */
+.dline.dline-txt {
+    padding: 3px 12px;
+    font-family: "SF Mono", Menlo, Consolas, "Courier New", monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-all;
+    overflow-wrap: break-word;
+    border-bottom: 1px solid var(--border);
+}
+.dline.dline-txt.del { background: rgba(239, 68, 68, 0.12); color: var(--danger); }
+.dline.dline-txt.add { background: rgba(16, 185, 129, 0.1); color: var(--success); }
+.dline.dline-txt.pad { background: rgba(0, 0, 0, 0.03); }
+[data-theme="dark"] .dline.dline-txt.pad { background: rgba(255, 255, 255, 0.03); }
+
+/* 字符级差异标记 */
+.diff-char {
+    background: rgba(239, 68, 68, 0.3);
+    border-radius: 2px;
+    padding: 0 1px;
+    font-weight: 600;
+}
+.dline.dline-txt.del .diff-char {
+    background: rgba(239, 68, 68, 0.35);
+}
+.dline.dline-txt.add .diff-char {
+    background: rgba(16, 185, 129, 0.3);
+}
+
+/* 合并对比行：整行不染色，只标字符 */
+.dline.dline-txt.dline-inline.del {
+    background: none;
+    color: var(--text);
+}
+.dline.dline-txt.dline-inline.add {
+    background: none;
+    color: var(--text);
+}
+.dline.dline-txt.dline-inline.del .diff-char {
+    background: rgba(239, 68, 68, 0.35);
+    color: var(--danger);
+    text-decoration: line-through;
+}
+.dline.dline-txt.dline-inline.add .diff-char {
+    background: rgba(16, 185, 129, 0.3);
+    color: var(--success);
+    font-weight: 700;
+}
+
+/* ========== 文本统一 Diff 输出 ========== */
+.diff-unified {
+    margin-top: 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-elev);
+    overflow: hidden;
+    font-family: "SF Mono", Menlo, Consolas, "Courier New", monospace;
+    font-size: 13px;
+    line-height: 1.6;
+}
+.diff-unified-header {
+    padding: 10px 16px;
+    background: var(--bg-muted);
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    gap: 20px;
+}
+.diff-unified-content {
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: 640px;
+}
+.diff-unified-line {
+    display: flex;
+    padding: 0 12px;
+    min-height: 24px;
+    align-items: flex-start;
+    white-space: pre;
+    border-bottom: 1px solid transparent;
+}
+.diff-unified-line:nth-child(odd) {
+    background: rgba(0, 0, 0, 0.01);
+}
+[data-theme="dark"] .diff-unified-line:nth-child(odd) {
+    background: rgba(255, 255, 255, 0.02);
+}
+.diff-unified-line.diff-add {
+    background: rgba(16, 185, 129, 0.1);
+    border-bottom-color: rgba(16, 185, 129, 0.15);
+}
+.diff-unified-line.diff-del {
+    background: rgba(239, 68, 68, 0.1);
+    border-bottom-color: rgba(239, 68, 68, 0.15);
+}
+.diff-unified-line.diff-header-line {
+    background: rgba(59, 130, 246, 0.08);
+    color: var(--primary);
+    font-weight: 600;
+}
+.diff-unified-ln {
+    display: inline-block;
+    min-width: 48px;
+    padding: 0 8px 0 0;
+    text-align: right;
+    color: var(--text-muted);
+    user-select: none;
+    flex-shrink: 0;
+    font-size: 12px;
+}
+.diff-unified-sign {
+    display: inline-block;
+    min-width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+    font-weight: 700;
+    user-select: none;
+}
+.diff-unified-line.diff-add .diff-unified-sign { color: var(--success); }
+.diff-unified-line.diff-del .diff-unified-sign { color: var(--danger); }
+.diff-unified-text {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: break-word;
+}
+.diff-unified-line.diff-add .diff-unified-text { color: var(--success); }
+.diff-unified-line.diff-del .diff-unified-text { color: var(--danger); }
+.diff-unified-line.diff-context .diff-unified-text { color: var(--text-muted); }
 
 /* Diff pad rows (alignment placeholders) */
 .diff-preview .dline.pad {
