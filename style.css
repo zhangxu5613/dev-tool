@@ -284,6 +284,20 @@ select {
     position: sticky;
     top: 68px;
     z-index: 40;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
+    padding: 10px 16px;
+    /* 内部工具栏不再自带圆角/阴影/边框 */
+}
+.json-sticky-bar > .toolbar {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+    margin-bottom: 10px;
 }
 
 /* ---- JSON 子标签栏 ---- */
@@ -291,12 +305,8 @@ select {
     display: flex;
     align-items: center;
     gap: 4px;
-    margin-top: 8px;
-    margin-bottom: 8px;
-    background: var(--bg-elev);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 4px 8px;
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
 }
 
 .sub-tab-list {
