@@ -710,6 +710,7 @@
         <div class="ds-tabs">
             <button class="ds-tab-btn active" data-tab="chat">💬 AI 对话</button>
             <button class="ds-tab-btn" data-tab="games">🕹️ 复古小游戏</button>
+            <button class="ds-tab-btn" data-tab="zyad">🐎 赵云与阿斗</button>
         </div>
         <div class="ds-header-right">
             <a href="/" class="ds-header-link">← 工具箱</a>
@@ -801,6 +802,47 @@
                     <button class="ds-touch-btn" data-key="ArrowLeft">◀</button>
                     <button class="ds-touch-btn" data-key="ArrowDown">▼</button>
                     <button class="ds-touch-btn" data-key="ArrowRight">▶</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 赵云与阿斗 Tab -->
+    <link rel="stylesheet" href="zyad-game.css" />
+    <div class="ds-tab-content" id="tab-zyad" hidden>
+        <div class="zyad-wrap">
+            <div class="zyad-topbar">
+                <button class="zyad-pause" id="zyadPause" title="暂停/继续">⏸</button>
+                <div class="zyad-level" id="zyadLevel">虎牢关</div>
+                <div class="zyad-wave">第 <b id="zyadWaveNum">1</b> 波</div>
+                <div class="zyad-stats">
+                    <span class="zyad-stat">馒头 <b id="zyadGrain">20</b></span>
+                </div>
+                <div class="zyad-topbar-right">
+                    <button class="zyad-menu" title="菜单">⋯</button>
+                </div>
+            </div>
+
+            <div class="zyad-arena" id="zyadArena">
+                <div class="zyad-half" id="zyadRightArena"></div>
+                <div class="zyad-divider"></div>
+                <div class="zyad-half" id="zyadLeftArena"></div>
+            </div>
+
+            <div class="zyad-card-slots" id="zyadCardSlots"></div>
+
+            <div class="zyad-actionbar">
+                <button class="zyad-recruit" id="zyadRecruit">
+                    <span>征兵</span>
+                    <span class="zyad-recruit-cost">🍞 <b id="zyadRecruitCost">10</b></span>
+                </button>
+            </div>
+
+            <div class="zyad-result hidden" id="zyadResult">
+                <div class="zyad-result-card">
+                    <div class="zyad-result-title" id="zyadResultTitle">胜利！</div>
+                    <div class="zyad-result-text" id="zyadResultText">成功守住了第 1 波</div>
+                    <button class="zyad-result-btn" id="zyadRestart">再来一局</button>
                 </div>
             </div>
         </div>
@@ -1154,21 +1196,29 @@
         const tabBtns = document.querySelectorAll('.ds-tab-btn');
         const tabChat = document.getElementById('tab-chat');
         const tabGames = document.getElementById('tab-games');
+        const tabZyad = document.getElementById('tab-zyad');
         let currentTab = localStorage.getItem(TAB_KEY) || 'chat';
 
         function switchTab(tab) {
             currentTab = tab;
             localStorage.setItem(TAB_KEY, tab);
             tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+            tabChat.setAttribute('hidden', '');
+            tabGames.setAttribute('hidden', '');
+            tabZyad.setAttribute('hidden', '');
             if (tab === 'chat') {
                 tabChat.removeAttribute('hidden');
-                tabGames.setAttribute('hidden', '');
                 stopCurrentGame();
+                if (window.zyadGame) window.zyadGame.pause();
                 dsInput.focus();
-            } else {
-                tabChat.setAttribute('hidden', '');
+            } else if (tab === 'games') {
                 tabGames.removeAttribute('hidden');
                 startCurrentGame();
+                if (window.zyadGame) window.zyadGame.pause();
+            } else if (tab === 'zyad') {
+                tabZyad.removeAttribute('hidden');
+                stopCurrentGame();
+                if (window.zyadGame) window.zyadGame.start();
             }
         }
 
@@ -2148,5 +2198,6 @@
         // The first game will be set up when user switches to the games tab
     })();
     </script>
+    <script src="zyad-game.js"></script>
 </body>
 </html>
