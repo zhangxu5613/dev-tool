@@ -810,7 +810,8 @@
     <!-- 赵云与阿斗 Tab -->
     <link rel="stylesheet" href="zyad-game.css" />
     <div class="ds-tab-content" id="tab-zyad" hidden>
-        <div class="zyad-wrap">
+        <div class="zyad-fit" id="zyadFit">
+        <div class="zyad-wrap" id="zyadWrap">
             <div class="zyad-topbar">
                 <button class="zyad-pause" id="zyadPause" title="暂停/继续">⏸</button>
                 <div class="zyad-level" id="zyadLevel">虎牢关</div>
@@ -845,6 +846,7 @@
                     <button class="zyad-result-btn" id="zyadRestart">再来一局</button>
                 </div>
             </div>
+        </div>
         </div>
     </div>
 
@@ -1199,6 +1201,27 @@
         const tabZyad = document.getElementById('tab-zyad');
         let currentTab = localStorage.getItem(TAB_KEY) || 'chat';
 
+        // 赵云与阿斗：固定设计尺寸(432px)缩放拟合屏幕，保持总体纵横比不变
+        function fitZyadGame() {
+            const wrap = document.getElementById('zyadWrap');
+            const fit = document.getElementById('zyadFit');
+            if (!wrap || !fit || tabZyad.hasAttribute('hidden')) return;
+            const DW = wrap.offsetWidth;
+            const DH = wrap.offsetHeight;
+            if (!DW || !DH) return;
+            const header = document.querySelector('.ds-header');
+            const headerH = header ? header.offsetHeight : 0;
+            const availW = tabZyad.clientWidth || window.innerWidth;
+            const availH = window.innerHeight - headerH - 8;
+            let scale = Math.min(availW / DW, availH / DH, 1);
+            if (!isFinite(scale) || scale <= 0) scale = 1;
+            wrap.style.transform = 'scale(' + scale + ')';
+            fit.style.width = (DW * scale) + 'px';
+            fit.style.height = (DH * scale) + 'px';
+        }
+        window.addEventListener('resize', fitZyadGame);
+        window.addEventListener('orientationchange', fitZyadGame);
+
         function switchTab(tab) {
             currentTab = tab;
             localStorage.setItem(TAB_KEY, tab);
@@ -1219,6 +1242,7 @@
                 tabZyad.removeAttribute('hidden');
                 stopCurrentGame();
                 if (window.zyadGame) window.zyadGame.start();
+                requestAnimationFrame(fitZyadGame);
             }
         }
 

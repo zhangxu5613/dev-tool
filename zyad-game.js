@@ -13,7 +13,7 @@
     const TILE = { LOCKED: 0, CLEARED: 1, PATH: 2, ODOU: 3, ENTRY: 4 };
 
     const DEFENDERS = {
-        枪: { name: '枪', range: 3.0, damage: 2, atkInterval: 1.25, hp: 5, atkType: 'pierce' },
+        枪: { name: '枪', range: 2.0, damage: 2, atkInterval: 1.25, hp: 5, atkType: 'pierce' },
         刀: { name: '刀', range: 1.0, damage: 3, atkInterval: 1.25, hp: 3, atkType: 'single' },
         骑: { name: '骑', range: 1.5, damage: 2, atkInterval: 1.25, hp: 4, atkType: 'aoe' },
         弓: { name: '弓', range: 3.0, damage: 2, atkInterval: 1.25, hp: 3, atkType: 'single' }
@@ -149,7 +149,7 @@
 
         refillCards() {
             while (this.cards.length < 5) {
-                this.cards.push({ type: this.rollCard(), used: false });
+                this.cards.push({ type: this.rollCard(), level: 1, used: false });
             }
         }
 
@@ -170,6 +170,12 @@
                     slot.textContent = '铲';
                 } else {
                     slot.textContent = card.type;
+                    if (card.level > 1) {
+                        const lv = document.createElement('span');
+                        lv.className = 'zyad-card-level';
+                        lv.textContent = 'Lv' + card.level;
+                        slot.appendChild(lv);
+                    }
                 }
                 if (card.used) slot.classList.add('used');
                 if (game.selectedCard && game.selectedCard.idx === idx && game.selectedCard.bf === this) {
@@ -177,12 +183,26 @@
                 }
                 slot.addEventListener('click', () => {
                     if (card.used) return;
-                    // 切换选中
                     if (game.selectedCard && game.selectedCard.idx === idx) {
+                        // 再次点击同一张 → 取消选中
                         game.selectedCard = null;
+                    } else if (game.selectedCard && game.selectedCard.bf === this) {
+                        const sel = game.selectedCard;
+                        const selCard = this.cards[sel.idx];
+                        // 同类同级且未达上限 → 在征兵栏内直接合并升级
+                        if (selCard && !selCard.used && selCard.type === card.type &&
+                            selCard.level === card.level && card.level < 5) {
+                            card.level += 1;               // 目标卡升级
+                            this.cards.splice(sel.idx, 1); // 消耗选中的卡
+                            game.selectedCard = null;
+                        } else {
+                            // 否则切换选中到这张卡
+                            game.selectedCard = { ...card, idx, bf: this };
+                            game.selectedDefender = null;
+                        }
                     } else {
                         game.selectedCard = { ...card, idx, bf: this };
-                        game.selectedDefender = null; // 取消守卫选中
+                        game.selectedDefender = null;
                     }
                     this.renderCards();
                 });
@@ -197,7 +217,7 @@
             // 每次随机征兵 5 个，替换整手手牌
             this.cards = [];
             for (let i = 0; i < 5; i++) {
-                this.cards.push({ type: this.rollCard(), used: false });
+                this.cards.push({ type: this.rollCard(), level: 1, used: false });
             }
             return true;
         }
@@ -806,16 +826,16 @@
                     bf.renderCards();
                 }
             } else {
-                // 已放置的同级同型号守护者（Lv1）→ 直接合成升级
-                if (existingDef && existingDef.type === card.type && existingDef.level === 1 && existingDef.level < 5) {
+                // 已放置的同级同型号守护者 → 直接合成升级
+                if (existingDef && existingDef.type === card.type && existingDef.level === card.level && existingDef.level < 5) {
                     bf.levelUpDefender(existingDef);
                     bf.showFloat(c, r, 'Lv' + existingDef.level, 'crit');
                     bf.useCard(card.idx);
                     game.selectedCard = null;
                     bf.renderCards();
                 } else if (bf.grid[r][c] === TILE.CLEARED && !existingDef) {
-                    // 否则放到空白格
-                    bf.placeDefender(r, c, card.type);
+                    // 否则放到空白格（按卡牌等级放置）
+                    bf.placeDefender(r, c, card.type, card.level);
                     bf.useCard(card.idx);
                     game.selectedCard = null;
                     bf.renderCards();
