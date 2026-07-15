@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>赵云与阿斗 - “木”字旋转指向鼠标攻击演示</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #222;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            user-select: none;
+        }
+        canvas {
+            border: 2px solid #fff;
+            background-color: #e5d3b3; /* 经典沙黄色背景 */
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            cursor: crosshair; /* 鼠标指针变成十字准星，方便瞄准 */
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// 1. 加载本地带白底的图片
+const rawImgMu = new Image();
+const rawImgCang = new Image();
+
+rawImgMu.src = 'mu.png';     // 带有白色背景的“木”字原图
+rawImgCang.src = 'cang.png'; // 带有白色背景的“仓”字原图
+
+// 自动抠图后生成的透明 Canvas 画布对象
+let imgMu, imgCang;
+
+let loadedCount = 0;
+function onImageLoad() {
+    loadedCount++;
+    if (loadedCount === 2) {
+        // 在开始动画前，使用 JS 自动剔除两张图片的白色背景
+        imgMu = removeWhiteBackground(rawImgMu);
+        imgCang = removeWhiteBackground(rawImgCang);
+        animate(); // 启动游戏主循环
+    }
+}
+rawImgMu.onload = onImageLoad;
+rawImgCang.onload = onImageLoad;
+
+/**
+ * 💡 前端自动去白底算法
+ * 遍历图片的每一个像素，将接近白色的像素点的透明度(Alpha)设为 0
+ */
+function removeWhiteBackground(img) {
+    const offscreen = document.createElement('canvas');
+    offscreen.width = img.width;
+    offscreen.height = img.height;
+    const oCtx = offscreen.getContext('2d');
+    oCtx.drawImage(img, 0, 0);
+    
+    const imgData = oCtx.getImageData(0, 0, offscreen.width, offscreen.height);
+    const data = imgData.data;
+    
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i+1];
+        const b = data[i+2];
+        
+        // 判定阈值：如果 R、G、B 都大于 180，说明非常接近白色，直接设为 100% 透明
+        if (r > 180 && g > 180 && b > 180) {
+            data[i+3] = 0; 
+        }
+    }
+    
+    oCtx.putImageData(imgData, 0, 0);
+    return offscreen; // 返回剔除背景后的干净画布对象
+}
+
+// 2. 游戏基准点（将整个字组合的中心放到画布中央）
+const baseGrid = { x: 400, y: 350 };
+
+// 实时记录鼠标当前的坐标（用于静态时“木”字微微偏向鼠标）
+const mouse = { x: 400, y: 100 };
+
+// 3. 物体属性与动画状态
+const state = {
+    attackState: 'idle', // idle, thrust, pullBack
+    
+    // “木”字的尺寸、旋转及发射参数
+    mu: {
+        startX: -25,       // 合并时，木字相对中心的左偏移量
+        startY: 0,         // 合并时，初始 Y 偏移
+        currentX: -25,     // 实时 X 偏移（用于飞行物理计算）
+        currentY: 0,       // 实时 Y 偏移（用于飞行物理计算）
+        
+        angle: 0,          // 旋转弧度
+        moveX: 0,          // 发射方向的 X 轴单位向量
+        moveY: 0,          // 发射方向的 Y 轴单位向量
+        totalDist: 280,    // 攻击飞出的最大距离（像素）
+        currentDist: 0,    // 当前飞出的实时距离
+        
+        /* 💡 调整“木”字的大小 */
+        width: 40,         // 宽度
+        height: 100,       // 高度
+        
+        speed: 35,         // 发射突刺速度
+        retractSpeed: 15   // 武器回收速度
+    },
+    
+    // “仓”字的尺寸、相对位置以及物理抖动控制
+    cang: {
+        offsetX: 15,       // 合并时，仓字相对中心的右偏移量
+        offsetY: 15,       // 👈 稍微往下调整了一点，让你能对齐两个字形。根据需要自行修改
+
+        /* 💡 调整“仓”字的大小 */
+        width: 40,         
+        height: 80,        
+        
+        // 物理震动反馈控制
+        shakeTime: 0,      
+        shakeIntensity: 0, 
+    }
+};
+
+// 特效容器
+let particles = [];
+let rings = [];
+
+// 水墨风击中火花
+class Particle {
+    constructor(x, y, angle) {
+        this.x = x;
+        this.y = y;
+        // 沿着攻击射出的反方向稍微偏转喷射
+        const spreadAngle = angle + Math.PI + (Math.random() - 0.5) * Math.PI * 0.4;
+        const speed = Math.random() * 6 + 4;
+        this.vx = Math.cos(spreadAngle) * speed;
+        this.vy = Math.sin(spreadAngle) * speed;
+        this.alpha = 1;
+        this.decay = Math.random() * 0.04 + 0.03;
+    }
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vy += 0.12; // 稍微受重力下坠
+        this.alpha -= this.decay;
+    }
+    draw(ctx) {
+        ctx.save();
+        ctx.globalAlpha = this.alpha;
+        ctx.fillStyle = '#b63c1a'; // 经典的朱砂墨水红
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, Math.random() * 2.5 + 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
+// 击中冲击波光圈
+class HitRing {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.radius = 8;
+        this.maxRadius = 45;
+        this.alpha = 1;
+    }
+    update() {
+        this.radius += (this.maxRadius - this.radius) * 0.25;
+        this.alpha -= 0.08;
+    }
+    draw(ctx) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, this.alpha);
+        ctx.strokeStyle = '#333333';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+    }
+}
+
+// 4. 监听鼠标移动，非攻击状态时也让“木”稍微偏向鼠标
+// canvas.addEventListener('mousemove', (e) => {
+//     const rect = canvas.getBoundingClientRect();
+//     mouse.x = e.clientX - rect.left;
+//     mouse.y = e.clientY - rect.top;
+// });
+
+// 5. 点击鼠标，触发旋转攻击
+canvas.addEventListener('mousedown', (e) => {
+    if (state.attackState === 'idle') {
+        const rect = canvas.getBoundingClientRect();
+        const mX = e.clientX - rect.left;
+        const mY = e.clientY - rect.top;
+
+        // 计算“木”字发射点的绝对位置
+        const muStartX = baseGrid.x + state.mu.startX;
+        const muStartY = baseGrid.y + state.mu.startY;
+
+        // 计算指向鼠标的夹角与单位速度方向
+        const dy = mY - muStartY;
+        const dx = mX - muStartX;
+        
+        // 保存发射角度 (图片本是立着的，所以旋转需修正 +90度 也就是 Math.PI / 2)
+        state.mu.angle = Math.atan2(dy, dx) + Math.PI / 2;
+
+        const moveAngle = Math.atan2(dy, dx);
+        state.mu.moveX = Math.cos(moveAngle);
+        state.mu.moveY = Math.sin(moveAngle);
+
+        state.attackState = 'thrust';
+        state.mu.currentDist = 0; // 重置发射距离
+
+        // 攻击瞬间，“仓”字产生微弱的蓄能颤动
+        state.cang.shakeTime = 12;
+        state.cang.shakeIntensity = 2;
+    }
+});
+
+// 6. 游戏主循环渲染
+function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const muStartX = baseGrid.x + state.mu.startX;
+    const muStartY = baseGrid.y + state.mu.startY;
+
+    // --- A. 角度计算（如果闲置，实时平滑指向当前鼠标位置） ---
+    if (state.attackState === 'idle') {
+        const dy = mouse.y - muStartY;
+        const dx = mouse.x - muStartX;
+        // state.mu.angle = Math.atan2(dy, dx) + Math.PI / 2;
+        state.mu.angle = 0;
+    }
+
+    // --- B. 运动物理与状态更新 ---
+    if (state.attackState === 'thrust') {
+        state.mu.currentDist += state.mu.speed;
+        
+        // 沿角度方向实时位移
+        state.mu.currentX = state.mu.startX + state.mu.moveX * state.mu.currentDist;
+        state.mu.currentY = state.mu.startY + state.mu.moveY * state.mu.currentDist;
+        
+        // 达到最大射程，判定击中
+        if (state.mu.currentDist >= state.mu.totalDist) {
+            state.mu.currentDist = state.mu.totalDist;
+            state.mu.currentX = state.mu.startX + state.mu.moveX * state.mu.totalDist;
+            state.mu.currentY = state.mu.startY + state.mu.moveY * state.mu.totalDist;
+            
+            state.attackState = 'pullBack';
+            
+            // 计算“木”字顶部枪尖处的击中坐标（根据当前旋转角度定位）
+            // 垂直距离即为“木”的高度的一半
+            const hitX = baseGrid.x + state.mu.currentX - Math.sin(state.mu.angle) * (state.mu.height / 2);
+            const hitY = baseGrid.y + state.mu.currentY - Math.cos(state.mu.angle) * (state.mu.height / 2);
+            
+            // 触发打击特效
+            rings.push(new HitRing(hitX, hitY));
+            for (let i = 0; i < 15; i++) {
+                particles.push(new Particle(hitX, hitY, state.mu.angle - Math.PI / 2));
+            }
+            
+            // 反作用力：原地“仓”字产生强烈物理受力震抖
+            state.cang.shakeTime = 25;
+            state.cang.shakeIntensity = 9; 
+        }
+    } else if (state.attackState === 'pullBack') {
+        state.mu.currentDist -= state.mu.retractSpeed;
+        
+        state.mu.currentX = state.mu.startX + state.mu.moveX * state.mu.currentDist;
+        state.mu.currentY = state.mu.startY + state.mu.moveY * state.mu.currentDist;
+
+        if (state.mu.currentDist <= 0) {
+            state.mu.currentDist = 0;
+            state.mu.currentX = state.mu.startX;
+            state.mu.currentY = state.mu.startY;
+            state.attackState = 'idle';
+        }
+    }
+
+    // --- C. 计算仓字抖动偏移量 ---
+    let shakeX = 0;
+    let shakeY = 0;
+    if (state.cang.shakeTime > 0) {
+        shakeX = (Math.random() - 0.5) * 2 * state.cang.shakeIntensity;
+        shakeY = (Math.random() - 0.5) * 2 * state.cang.shakeIntensity;
+        state.cang.shakeIntensity *= 0.92; // 阻尼衰减
+        state.cang.shakeTime--;
+    }
+
+    // --- D. 渲染绘制画面 ---
+
+    // 1. 突刺速度残影线
+    if (state.attackState === 'thrust') {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(muStartX, muStartY);
+        ctx.lineTo(baseGrid.x + state.mu.currentX, baseGrid.y + state.mu.currentY);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // 2. 绘制留在原地且受反作用力抖动的“仓”字
+    ctx.save();
+    ctx.translate(baseGrid.x + state.cang.offsetX + shakeX, baseGrid.y + state.cang.offsetY + shakeY);
+    ctx.drawImage(
+        imgCang, 
+        -state.cang.width / 2, 
+        -state.cang.height / 2, 
+        state.cang.width, 
+        state.cang.height
+    );
+    ctx.restore();
+
+    // 3. 绘制旋转飞行的武器——“木”字旁
+    ctx.save();
+    ctx.translate(baseGrid.x + state.mu.currentX, baseGrid.y + state.mu.currentY);
+    ctx.rotate(state.mu.angle); // 绕自身中心旋转
+    
+    // 突刺时，在局部的纵向上产生拉伸形变，增加视觉速度感
+    if (state.attackState === 'thrust') {
+        ctx.scale(0.9, 1.2); 
+    }
+    
+    ctx.drawImage(
+        imgMu, 
+        -state.mu.width / 2, 
+        -state.mu.height / 2, 
+        state.mu.width, 
+        state.mu.height
+    );
+    ctx.restore();
+
+    // 4. 特效更新与渲染
+    particles = particles.filter(p => p.alpha > 0);
+    particles.forEach(p => { p.update(); p.draw(ctx); });
+
+    rings = rings.filter(r => r.alpha > 0);
+    rings.forEach(r => { r.update(); r.draw(ctx); });
+
+    // UI 指引
+    ctx.fillStyle = '#6e5d42';
+    ctx.font = 'bold 16px "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('移动鼠标瞄准，点击画面向鼠标位置发射“木”字突刺！', canvas.width / 2, 50);
+
+    requestAnimationFrame(animate);
+}
+</script>
+
+</body>
+</html>

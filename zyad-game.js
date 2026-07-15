@@ -13,16 +13,16 @@
     const TILE = { LOCKED: 0, CLEARED: 1, PATH: 2, ODOU: 3, ENTRY: 4 };
 
     const DEFENDERS = {
-        枪: { name: '枪', range: 2.0, damage: 2, atkInterval: 1.25, hp: 5, atkType: 'pierce' },
-        刀: { name: '刀', range: 1.0, damage: 3, atkInterval: 1.25, hp: 3, atkType: 'single' },
-        骑: { name: '骑', range: 1.5, damage: 2, atkInterval: 1.25, hp: 4, atkType: 'aoe' },
-        弓: { name: '弓', range: 3.0, damage: 2, atkInterval: 1.25, hp: 3, atkType: 'single' }
+        枪: { name: '枪', range: 2.0, damage: 2, atkInterval: 0.8, hp: 5, atkType: 'pierce' },
+        刀: { name: '刀', range: 1.0, damage: 3, atkInterval: 0.8, hp: 3, atkType: 'single' },
+        骑: { name: '骑', range: 1.5, damage: 2, atkInterval: 0.8, hp: 4, atkType: 'aoe' },
+        弓: { name: '弓', range: 3.0, damage: 2, atkInterval: 0.8, hp: 3, atkType: 'single' }
     };
 
     const ENEMIES = {
-        兵: { name: '兵', hp: 3, speed: 0.55, damage: 1, reward: 1 },
-        卒: { name: '卒', hp: 5, speed: 0.45, damage: 1, reward: 2 },
-        将: { name: '将', hp: 10, speed: 0.35, damage: 2, reward: 5 }
+        兵: { name: '兵', speed: 0.55, damage: 1, reward: 1 },
+        卒: { name: '卒', speed: 0.45, damage: 1, reward: 2 },
+        将: { name: '将', speed: 0.35, damage: 2, reward: 5 }
     };
 
     const CARD_TYPES = Object.keys(DEFENDERS);
@@ -168,6 +168,22 @@
                 if (card.type === 'shovel') {
                     slot.classList.add('shovel');
                     slot.textContent = '铲';
+                } else if (card.type === '枪') {
+                    // 枪兵卡牌：木+仓双图
+                    const mu = document.createElement('img');
+                    mu.className = 'zyad-gun-mu';
+                    mu.src = 'canvas/mu.png';
+                    const cang = document.createElement('img');
+                    cang.className = 'zyad-gun-cang';
+                    cang.src = 'canvas/cang.png';
+                    slot.appendChild(mu);
+                    slot.appendChild(cang);
+                    if (card.level > 1) {
+                        const lv = document.createElement('span');
+                        lv.className = 'zyad-card-level';
+                        lv.textContent = 'Lv' + card.level;
+                        slot.appendChild(lv);
+                    }
                 } else {
                     slot.textContent = card.type;
                     if (card.level > 1) {
@@ -208,6 +224,8 @@
                 });
                 slotsEl.appendChild(slot);
             });
+            // 卡牌渲染后高度变化，触发重新适配
+            if (window.fitZyadGame) window.fitZyadGame();
         }
 
         recruit() {
@@ -235,20 +253,25 @@
                 cell.classList.add('has-defender');
                 const defEl = document.createElement('div');
                 defEl.className = 'zyad-defender';
-                defEl.textContent = cfg.name;
+                if (type === '枪') {
+                    // 枪兵：木+仓双图拼合
+                    const mu = document.createElement('img');
+                    mu.className = 'zyad-gun-mu';
+                    mu.src = 'canvas/mu.png';
+                    const cang = document.createElement('img');
+                    cang.className = 'zyad-gun-cang';
+                    cang.src = 'canvas/cang.png';
+                    defEl.appendChild(mu);
+                    defEl.appendChild(cang);
+                } else {
+                    defEl.textContent = cfg.name;
+                }
                 defEl.dataset.type = type;
                 defEl.dataset.level = level;
                 const lvl = document.createElement('div');
                 lvl.className = 'zyad-defender-level';
                 lvl.textContent = 'Lv' + level;
-                const hp = document.createElement('div');
-                hp.className = 'zyad-defender-hp';
-                const fill = document.createElement('div');
-                fill.className = 'zyad-defender-hp-fill';
-                fill.style.width = '100%';
-                hp.appendChild(fill);
                 defEl.appendChild(lvl);
-                defEl.appendChild(hp);
                 cell.appendChild(defEl);
                 d.el = defEl;
                 d.levelEl = lvl;
@@ -340,19 +363,20 @@
             if (this.infoTip) this.infoTip.classList.add('hidden');
         }
 
-        spawnEnemy(type) {
+        spawnEnemy(type, wave = 1) {
             const cfg = ENEMIES[type];
+            const hp = 20 + (wave - 1) * 20;
             const [sr, sc] = this.path[0];
             const e = {
                 type, cfg, stepIdx: 0,
                 x: sc - this.colOffset,
                 y: sr,
-                hp: cfg.hp, maxHp: cfg.hp,
+                hp: hp, maxHp: hp,
                 speed: cfg.speed, atkCooldown: 0,
                 el: null, elHp: null
             };
             const el = document.createElement('div');
-            el.className = `zyad-enemy hp-${Math.min(4, cfg.hp)}`;
+            el.className = 'zyad-enemy';
             el.textContent = cfg.name;
             const hpBar = document.createElement('div');
             hpBar.className = 'zyad-enemy-hp';
@@ -416,12 +440,13 @@
                 const target = this.findEnemyInRange(d.r, d.c, stats.range);
                 if (target) {
                     const isRanged = stats.range >= 2;
+                    // 触发攻击动画
+                    this.triggerAttackAnim(d);
                     if (stats.atkType === 'aoe') {
-                        // 范围：攻击射程内所有敌人
                         const targets = this.findAllEnemiesInRange(d.r, d.c, stats.range);
                         for (const t of targets) {
                             if (isRanged) {
-                                this.spawnProjectile(d.r, d.c, t, stats.damage);
+                                this.spawnProjectile(d.r, d.c, t, stats.damage, d.type);
                             } else {
                                 t.hp -= stats.damage;
                                 this.updateEnemyHP(t);
@@ -433,11 +458,10 @@
                             }
                         }
                     } else if (stats.atkType === 'pierce') {
-                        // 贯穿：攻击路径上所有敌人
                         const targets = this.findEnemiesInLine(d.r, d.c, target, stats.range);
                         for (const t of targets) {
                             if (isRanged) {
-                                this.spawnProjectile(d.r, d.c, t, stats.damage);
+                                this.spawnProjectile(d.r, d.c, t, stats.damage, d.type);
                             } else {
                                 t.hp -= stats.damage;
                                 this.updateEnemyHP(t);
@@ -449,9 +473,8 @@
                             }
                         }
                     } else {
-                        // 单体
                         if (isRanged) {
-                            this.spawnProjectile(d.r, d.c, target, stats.damage);
+                            this.spawnProjectile(d.r, d.c, target, stats.damage, d.type);
                         } else {
                             target.hp -= stats.damage;
                             this.updateEnemyHP(target);
@@ -467,6 +490,17 @@
                     d.atkTimer = 0.1;
                 }
             }
+        }
+
+        /* 触发守护者攻击动画 */
+        triggerAttackAnim(d) {
+            if (!d.el) return;
+            const map = { '弓': 'attacking-bow', '枪': 'attacking-spear', '刀': 'attacking-blade', '骑': 'attacking-cavalry' };
+            const cls = map[d.type];
+            if (!cls) return;
+            d.el.classList.remove(cls);
+            void d.el.offsetWidth; // 强制回流以重播动画
+            d.el.classList.add(cls);
         }
 
         findAllEnemiesInRange(r, c, range) {
@@ -512,14 +546,118 @@
             return best;
         }
 
-        spawnProjectile(r, c, target, damage) {
+        spawnProjectile(r, c, target, damage, defType) {
             const el = document.createElement('div');
+            // 枪：飞矛特效（"木"字飞出再收回）
+            if (defType === '枪') {
+                el.className = 'zyad-spear';
+                const img = document.createElement('img');
+                img.src = 'canvas/mu.png';
+                el.appendChild(img);
+                this.effectLayer.appendChild(el);
+                // 隐藏原地木字，让它"飞出去"
+                let origMu = null;
+                const def = this.defenders.find(d => d.r === r && d.c === c);
+                if (def && def.el) {
+                    origMu = def.el.querySelector('.zyad-gun-mu');
+                    if (origMu) origMu.style.visibility = 'hidden';
+                }
+                const p = { x: c, y: r, target, damage, el, defType, speed: 14,
+                    startX: c, startY: r, phase: 'out', hitDone: false, origMu };
+                this.projectiles.push(p);
+                return;
+            }
+            // 其他：标准投射物
             el.className = 'zyad-projectile';
+            if (defType === '弓') el.classList.add('arrow');
             this.effectLayer.appendChild(el);
-            this.projectiles.push({ x: c, y: r, target, damage, el, speed: 8 });
+            const p = { x: c, y: r, target, damage, el, speed: 8, defType: defType || null };
+            if (defType === '弓') {
+                const angle = Math.atan2(target.y - r, target.x - c) * 180 / Math.PI;
+                el.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+            }
+            this.projectiles.push(p);
+        }
+
+        /* 矛击命中粒子爆发 */
+        spawnSpearHitFX(x, y) {
+            for (let i = 0; i < 10; i++) {
+                const spark = document.createElement('div');
+                spark.className = 'zyad-spear-spark';
+                spark.style.left = '0px'; spark.style.top = '0px';
+                this.effectLayer.appendChild(spark);
+                const angle = Math.random() * Math.PI * 2;
+                const spd = 1.5 + Math.random() * 3;
+                this.effects.push({
+                    el: spark, x, y, t: 0,
+                    vx: Math.cos(angle) * spd,
+                    vy: Math.sin(angle) * spd,
+                    life: 0.4 + Math.random() * 0.3,
+                    isSpark: true
+                });
+            }
         }
 
         updateProjectile(p, dt) {
+            // ── 飞矛特殊逻辑（旋转指向目标 + 飞出收回）──
+            if (p.defType === '枪') {
+                const dx = p.target.x - p.x;
+                const dy = p.target.y - p.y;
+                const dist = Math.hypot(dx, dy);
+                // 攻击方向角度（mu 图立着，尖头朝上，需 +90°）
+                const atkAngle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
+                if (p.phase === 'out') {
+                    // 实时旋转指向目标
+                    p.el.style.transform = `translate(-50%, -50%) rotate(${atkAngle}deg)`;
+                    if (dist < 0.35 || !this.enemies.includes(p.target)) {
+                        if (this.enemies.includes(p.target) && !p.hitDone) {
+                            p.hitDone = true;
+                            p.target.hp -= p.damage;
+                            this.updateEnemyHP(p.target);
+                            this.showFloat(p.target.x, p.target.y, '-' + p.damage, 'crit');
+                            this.spawnSpearHitFX(p.target.x, p.target.y);
+                            // 仓字受击抖动
+                            const def = this.defenders.find(d => d.r === p.startY && d.c === p.startX);
+                            if (def && def.el) {
+                                const cangEl = def.el.querySelector('.zyad-gun-cang');
+                                if (cangEl) {
+                                    cangEl.classList.add('shaking');
+                                    setTimeout(() => cangEl.classList.remove('shaking'), 350);
+                                }
+                            }
+                            if (p.target.hp <= 0) {
+                                this.grain += 1;
+                                this.removeEnemy(p.target);
+                            }
+                        }
+                        p.phase = 'back';
+                    } else {
+                        const move = p.speed * dt;
+                        p.x += (dx / dist) * move;
+                        p.y += (dy / dist) * move;
+                    }
+                } else {
+                    // 飞回（保持旋转方向）
+                    p.el.style.transform = `translate(-50%, -50%) rotate(${atkAngle + 180}deg)`;
+                    const bx = p.startX - p.x;
+                    const by = p.startY - p.y;
+                    const bd = Math.hypot(bx, by);
+                    if (bd < 0.3) {
+                        // 飞回原位，恢复原地木字
+                        if (p.origMu) p.origMu.style.visibility = '';
+                        p.el.remove();
+                        const i = this.projectiles.indexOf(p);
+                        if (i >= 0) this.projectiles.splice(i, 1);
+                        return;
+                    }
+                    const backMove = p.speed * 0.7 * dt;
+                    p.x += (bx / bd) * backMove;
+                    p.y += (by / bd) * backMove;
+                }
+                return;
+            }
+
+            // ── 标准投射物 ──
             const dx = p.target.x - p.x;
             const dy = p.target.y - p.y;
             const dist = Math.hypot(dx, dy);
@@ -541,6 +679,10 @@
             const move = p.speed * dt;
             p.x += (dx / dist) * move;
             p.y += (dy / dist) * move;
+            if (p.defType === '弓') {
+                const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                p.el.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+            }
         }
 
         showFloat(x, y, text, cls) {
@@ -553,10 +695,22 @@
 
         updateEffects(dt) {
             for (let i = this.effects.length - 1; i >= 0; i--) {
-                this.effects[i].t += dt;
-                if (this.effects[i].t > 0.8) {
-                    this.effects[i].el.remove();
-                    this.effects.splice(i, 1);
+                const ef = this.effects[i];
+                if (ef.isSpark) {
+                    ef.t += dt;
+                    ef.x += (ef.vx || 0) * dt * 60;
+                    ef.y += (ef.vy || 0) * dt * 60;
+                    ef.el.style.opacity = Math.max(0, 1 - ef.t / ef.life);
+                    if (ef.t >= ef.life) {
+                        ef.el.remove();
+                        this.effects.splice(i, 1);
+                    }
+                } else {
+                    ef.t += dt;
+                    if (ef.t > 0.8) {
+                        ef.el.remove();
+                        this.effects.splice(i, 1);
+                    }
                 }
             }
         }
@@ -582,8 +736,7 @@
         }
 
         updateDefenderHP(d) {
-            const f = d.el?.querySelector('.zyad-defender-hp-fill');
-            if (f) f.style.width = Math.max(0, (d.hp / d.maxHp) * 100) + '%';
+            // 血条已移除，无需更新
         }
 
         updateEnemyHP(e) {
@@ -699,7 +852,7 @@
 
     // ─────────── 波次 ───────────
     function buildWavePlan(wave) {
-        const count = 4 + Math.floor(wave * 1.8);
+        const count = 10 + (wave - 1);
         const plan = [];
         for (let i = 0; i < count; i++) {
             const r = Math.random();
@@ -727,15 +880,14 @@
                 game.spawnTimer -= dt;
                 if (game.spawnTimer <= 0) {
                     const type = game.spawnPlan[game.spawnIndex];
-                    game.leftBF.spawnEnemy(type);
-                    // 暂停 AI 出兵，仅玩家侧防守
+                    game.leftBF.spawnEnemy(type, game.wave);
                     game.spawnIndex++;
-                    game.spawnTimer = 0.7;
+                    game.spawnTimer = 1.2;
                 }
             } else if (game.leftBF.enemies.length === 0) {
                 game.waveActive = false;
                 game.wave++;
-                game.waveCooldown = 3;
+                game.waveCooldown = 5;
                 if (game.wave > game.maxWaves) {
                     endGame('win', '成功守住所有波次！');
                 }
@@ -927,7 +1079,8 @@
         game.leftBF.render(leftArena);
         game.rightBF.render(rightArena);
 
-        // 玩家初始征兵栏为空（每次点击征兵随机出 5 个）
+        // 玩家初始征兵栏直接给满 5 张
+        game.leftBF.refillCards();
         game.leftBF.renderCards();
 
         // AI 初始卡牌

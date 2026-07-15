@@ -1201,19 +1201,19 @@
         const tabZyad = document.getElementById('tab-zyad');
         let currentTab = localStorage.getItem(TAB_KEY) || 'chat';
 
-        // 赵云与阿斗：固定设计尺寸(432px)缩放拟合屏幕，保持总体纵横比不变
+        // 赵云与阿斗：固定设计尺寸缩放拟合视口
         function fitZyadGame() {
             const wrap = document.getElementById('zyadWrap');
             const fit = document.getElementById('zyadFit');
             if (!wrap || !fit || tabZyad.hasAttribute('hidden')) return;
-            const DW = wrap.offsetWidth;
-            const DH = wrap.offsetHeight;
-            if (!DW || !DH) return;
+            const DW = 432; // 固定设计宽度
+            const DH = wrap.scrollHeight; // 实际内容高度（含卡牌）
+            if (!DH) return;
             const header = document.querySelector('.ds-header');
             const headerH = header ? header.offsetHeight : 0;
             const availW = tabZyad.clientWidth || window.innerWidth;
-            const availH = window.innerHeight - headerH - 8;
-            let scale = Math.min(availW / DW, availH / DH, 1);
+            const availH = window.innerHeight - headerH - 4;
+            let scale = Math.min(availW / DW, availH / DH, 2.0);
             if (!isFinite(scale) || scale <= 0) scale = 1;
             wrap.style.transform = 'scale(' + scale + ')';
             fit.style.width = (DW * scale) + 'px';
@@ -1221,6 +1221,7 @@
         }
         window.addEventListener('resize', fitZyadGame);
         window.addEventListener('orientationchange', fitZyadGame);
+        window.fitZyadGame = fitZyadGame;
 
         function switchTab(tab) {
             currentTab = tab;
@@ -1242,7 +1243,9 @@
                 tabZyad.removeAttribute('hidden');
                 stopCurrentGame();
                 if (window.zyadGame) window.zyadGame.start();
-                requestAnimationFrame(fitZyadGame);
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(fitZyadGame);
+                });
             }
         }
 
