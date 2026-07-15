@@ -45,6 +45,7 @@
 
         <!-- ============ JSON 工具 ============ -->
         <section class="tab-panel active" data-panel="json">
+            <div class="json-sticky-bar">
             <div class="toolbar">
                 <div class="toolbar-left">
                     <button class="btn btn-primary" data-action="format">
@@ -72,6 +73,14 @@
                     <button class="btn" data-action="copy-output">复制结果</button>
                 </div>
             </div>
+
+            <div class="json-sub-tabs" id="jsonSubTabs">
+                <div class="sub-tab-list" id="jsonSubTabList">
+                    <button class="sub-tab active" data-tab-id="1">标签 1</button>
+                    <button class="sub-tab-add" id="jsonSubTabAdd" title="新增标签">+</button>
+                </div>
+            </div>
+            </div><!-- .json-sticky-bar -->
 
             <div class="editor-wrap">
                 <section class="editor-pane">

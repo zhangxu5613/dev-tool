@@ -197,9 +197,6 @@ body {
     align-items: center;
     justify-content: flex-start;
     box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
-    position: sticky;
-    top: 68px;
-    z-index: 40;
 }
 
 .toolbar-left, .toolbar-right {
@@ -280,6 +277,112 @@ select {
     color: var(--text);
     font-size: 12px;
     cursor: pointer;
+}
+
+/* ---- JSON 固定顶栏（工具栏 + 子标签） ---- */
+.json-sticky-bar {
+    position: sticky;
+    top: 68px;
+    z-index: 40;
+}
+
+/* ---- JSON 子标签栏 ---- */
+.json-sub-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+    margin-bottom: 8px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 4px 8px;
+}
+
+.sub-tab-list {
+    display: flex;
+    gap: 2px;
+    overflow-x: auto;
+    flex: 1;
+    scrollbar-width: none;
+}
+.sub-tab-list::-webkit-scrollbar { display: none; }
+
+.sub-tab {
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s;
+    user-select: none;
+}
+.sub-tab:hover {
+    background: var(--bg);
+    color: var(--text);
+}
+.sub-tab.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+.sub-tab .sub-tab-close {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    line-height: 1;
+    opacity: 0;
+    transition: opacity 0.15s;
+    background: transparent;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+}
+.sub-tab:hover .sub-tab-close,
+.sub-tab.active .sub-tab-close {
+    opacity: 0.7;
+}
+.sub-tab .sub-tab-close:hover {
+    opacity: 1;
+    background: rgba(255,255,255,0.25);
+}
+
+.sub-tab-add {
+    width: 28px;
+    height: 28px;
+    margin-left: 5px;
+    border: 1.5px solid var(--primary);
+    border-radius: 5px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.15s;
+    padding: 0;
+    line-height: 1;
+}
+.sub-tab-add:hover {
+    background: var(--primary-hover, #4f46e5);
+    border-color: var(--primary-hover, #4f46e5);
+    transform: scale(1.08);
 }
 
 /* Editor area */

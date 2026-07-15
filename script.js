@@ -1136,6 +1136,112 @@
     // 树形折叠按钮默认显示（文本视图同样可用）
     treeActions.hidden = false;
 
+    // ---------- 子标签页管理 ----------
+    const subTabList = $('#jsonSubTabList');
+    const subTabAdd = $('#jsonSubTabAdd');
+    let _jsonTabs = [{ id: 1, label: '标签 1', inputValue: '' }];
+    let _activeTabId = 1;
+    let _nextTabId = 2;
+
+    function saveActiveTab() {
+        const tab = _jsonTabs.find(t => t.id === _activeTabId);
+        if (tab) tab.inputValue = input.value;
+    }
+
+    function renderSubTabs() {
+        subTabList.innerHTML = _jsonTabs.map(t => {
+            const cls = t.id === _activeTabId ? ' sub-tab active' : 'sub-tab';
+            return `<button class="${cls}" data-tab-id="${t.id}">${escapeHTML(t.label)}${_jsonTabs.length > 1 ? '<span class="sub-tab-close">×</span>' : ''}</button>`;
+        }).join('') + '<button class="sub-tab-add" id="jsonSubTabAdd" title="新增标签">+</button>';
+        // 重新绑定 + 按钮事件（innerHTML 会销毁旧 DOM）
+        const newAddBtn = $('#jsonSubTabAdd');
+        if (newAddBtn) newAddBtn.addEventListener('click', () => addNewTab());
+    }
+
+    function switchToTab(tabId) {
+        if (tabId === _activeTabId) return;
+        saveActiveTab();
+        const tab = _jsonTabs.find(t => t.id === tabId);
+        if (!tab) return;
+        _activeTabId = tabId;
+        input.value = tab.inputValue;
+        renderSubTabs();
+        updateGutter();
+        if (input.value.trim()) autoProcess();
+        else {
+            output.innerHTML = '';
+            tree.innerHTML = '';
+            tree.hidden = true; output.hidden = false;
+            treeActions.hidden = false;
+            setStatus('idle', '等待输入...');
+            inputInfo.textContent = '0 行 · 0 字符';
+            outputInfo.textContent = '0 行 · 0 字符';
+            currentObj = null;
+        }
+    }
+
+    function addNewTab() {
+        saveActiveTab();
+        const id = _nextTabId++;
+        _jsonTabs.push({ id, label: `标签 ${id}`, inputValue: '' });
+        _activeTabId = id;
+        input.value = '';
+        renderSubTabs();
+        updateGutter();
+        output.innerHTML = '';
+        tree.innerHTML = '';
+        tree.hidden = true; output.hidden = false;
+        treeActions.hidden = false;
+        setStatus('idle', '等待输入...');
+        inputInfo.textContent = '0 行 · 0 字符';
+        outputInfo.textContent = '0 行 · 0 字符';
+        currentObj = null;
+    }
+
+    function closeTab(tabId) {
+        if (_jsonTabs.length <= 1) return; // 至少保留一个
+        const idx = _jsonTabs.findIndex(t => t.id === tabId);
+        if (idx === -1) return;
+        _jsonTabs.splice(idx, 1);
+        if (tabId === _activeTabId) {
+            // 激活相邻标签
+            const newIdx = Math.min(idx, _jsonTabs.length - 1);
+            _activeTabId = _jsonTabs[newIdx].id;
+            const tab = _jsonTabs[newIdx];
+            input.value = tab.inputValue;
+            renderSubTabs();
+            updateGutter();
+            if (input.value.trim()) autoProcess();
+            else {
+                output.innerHTML = '';
+                tree.innerHTML = '';
+                tree.hidden = true; output.hidden = false;
+                treeActions.hidden = false;
+                setStatus('idle', '等待输入...');
+                inputInfo.textContent = '0 行 · 0 字符';
+                outputInfo.textContent = '0 行 · 0 字符';
+                currentObj = null;
+            }
+        } else {
+            renderSubTabs();
+        }
+    }
+
+    subTabList.addEventListener('click', (e) => {
+        const btn = e.target.closest('.sub-tab');
+        if (!btn) return;
+        const tabId = parseInt(btn.dataset.tabId, 10);
+        if (isNaN(tabId)) return;
+        // 检查是否点了关闭按钮
+        if (e.target.closest('.sub-tab-close')) {
+            closeTab(tabId);
+            return;
+        }
+        switchToTab(tabId);
+    });
+
+    subTabAdd.addEventListener('click', () => addNewTab());
+
     // ================================================================
     // ===================== 通用工具 =====================
     // ================================================================
