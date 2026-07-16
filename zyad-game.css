@@ -14,6 +14,7 @@
 .zyad-wrap {
     position: relative;
     width: 432px;
+    --zyad-cell: 48.75px; /* 战场方格尺寸（432 设计宽下 = (412-8-14)/8），征兵栏复用以保持一致 */
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -79,11 +80,12 @@
 		}
 	.zyad-divider {
 	    flex-shrink: 0;
-	    height: 3px;
+	    height: 16px;
 	    width: 100%;
-	    background: linear-gradient(90deg, #6b4423 0%, #3a2410 50%, #6b4423 100%);
-	    border-radius: 1px;
-	    margin: 3px 0;
+	    background: url('canvas/fenge.png') repeat-x center;
+	    background-size: auto 100%;
+	    border-radius: 2px;
+	    margin: 2px 0;
 	    box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
 	}
 
@@ -128,8 +130,9 @@
     box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
     cursor: pointer;
 }
-.zyad-cell.cleared:hover { background: #fff5d6; }
-.zyad-cell.hover-target { background: #fff0a8; outline: 2px solid #d4a857; }
+.zyad-cell.cleared:hover { filter: brightness(1.12); }
+.zyad-cell.entry, .zyad-cell.odou { cursor: default; }
+.zyad-cell.hover-target { outline: 2px solid #d4a857; filter: brightness(1.15); }
 .zyad-cell.entry { background: #8b6a3a; color: #f5e9c5; }
 .zyad-cell.shovel-target {
     background: #d4a857 !important; color: #2a1a05;
@@ -177,6 +180,24 @@
 .zyad-cell.has-defender { background: #fff5d6; cursor: default; }
 .zyad-cell .zyad-defender {
     font-size: 38px; line-height: 1;
+}
+/* 骑（旗枪）挥旗 canvas */
+.zyad-cell .zyad-defender.zyad-defender-qi {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 100%; height: 100%;
+    transform: translate(-50%, -50%) scale(2);
+    transform-origin: center center;
+    pointer-events: none;
+}
+.zyad-cell .zyad-defender .zyad-qi-canvas {
+    width: 100%; height: 100%; display: block;
+}
+.zyad-card-slot .zyad-qi-card-canvas {
+    width: var(--zyad-cell, 48.75px); height: var(--zyad-cell, 48.75px);
+    max-width: 100%; max-height: 100%;
+    transform: scale(2); transform-origin: center;
+    display: block; margin: 0 auto;
 }
 /* 枪兵：木+仓双图拼合（保持 canvas 原始比例，统一缩放 0.39） */
 .zyad-cell .zyad-defender .zyad-gun-mu {
@@ -329,13 +350,15 @@
 	/* 卡牌槽（始终可见） */
 	.zyad-card-slots {
 	    flex-shrink: 0;
-	    display: grid; grid-template-columns: repeat(5, 1fr);
+	    display: grid; grid-template-columns: repeat(5, var(--zyad-cell, 48.75px));
+	    justify-content: center;
 	    gap: 6px; padding: 6px;
 	    background: rgba(0, 0, 0, 0.15); border-radius: 8px;
 	}
 .zyad-card-slot {
     background: rgba(255, 255, 255, 0.85);
     border: 2px dashed #8a7558; border-radius: 6px;
+    min-height: 0;
     aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
     font-size: 20px; font-weight: 700;
     font-family: "STKaiti", "KaiTi", serif; color: #4a3818;

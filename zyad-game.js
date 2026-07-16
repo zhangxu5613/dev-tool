@@ -27,24 +27,32 @@
 
     const CARD_TYPES = Object.keys(DEFENDERS);
 
-    // 玩家路径（8列×5行），入口在 [0,7] 右上角，阿斗在 [4,7] 右下角
-    // S 形：下→左→下→右
-    const LEFT_PATH = [
-        [0, 7], [1, 7], [2, 7],
-        [2, 6], [2, 5], [2, 4], [2, 3], [2, 2], [2, 1], [2, 0],
-        [3, 0], [4, 0],
-        [4, 1], [4, 2], [4, 3], [4, 4], [4, 5], [4, 6], [4, 7]
+    // 己方地图（5行×8列）：A=道路 B=荒地 C=空地
+    const MY_MAP = [
+        'ABAAAABA',
+        'ABABBABA',
+        'ABACCABA',
+        'AAACCAAA',
+        'BBBCCBBB'
     ];
+    // 敌方地图 = 己方中心对称（行反转+列反转；每行回文故仅行反转）
+    const FOE_MAP = MY_MAP.slice().reverse().map(r => r.split('').reverse().join(''));
 
-    // AI 路径（镜像），入口在 (0,0) 左上角，阿斗在 (5,0) 左下角
-    const RIGHT_PATH = LEFT_PATH.map(([r, c]) => [r, 7 - c]);
+    // 玩家路径：敌营(0,0) → 沿道路A蜿蜒 → 阿斗(0,7)
+    const LEFT_PATH = [
+        [0,0],[1,0],[2,0],[3,0],[3,1],[3,2],[2,2],[1,2],[0,2],
+        [0,3],[0,4],[0,5],[1,5],[2,5],[3,5],[3,6],[3,7],[2,7],[1,7],[0,7]
+    ];
+    // AI 路径（中心对称）：敌营(4,7) → 阿斗(4,0)
+    const RIGHT_PATH = LEFT_PATH.map(([r, c]) => [4 - r, 7 - c]);
 
     // ─────────── 战场类 ───────────
     class Battlefield {
-        constructor(side, colOffset, path) {
+        constructor(side, colOffset, path, mapData) {
             this.side = side; // 'left' | 'right'
             this.colOffset = colOffset; // 0 or 6
             this.path = path;
+            this.mapData = mapData;
             this.grid = [];
             this.defenders = [];
             this.enemies = [];
@@ -66,26 +74,18 @@
             this.grid = [];
             for (let r = 0; r < ROWS; r++) {
                 const row = [];
-                for (let c = 0; c < COLS; c++) row.push(TILE.LOCKED);
+                for (let c = 0; c < COLS; c++) {
+                    const ch = this.mapData[r][c];
+                    row.push(ch === 'A' ? TILE.PATH : ch === 'C' ? TILE.CLEARED : TILE.LOCKED);
+                }
                 this.grid.push(row);
             }
-            // 标记路径
-            for (const [r, c] of this.path) {
-                const lc = c - this.colOffset;
-                this.grid[r][lc] = TILE.PATH;
-            }
-            // 入口
+            // 入口（敌营）= path 起点
             const [er, ec] = this.path[0];
             this.grid[er][ec - this.colOffset] = TILE.ENTRY;
-            // 阿斗
+            // 阿斗 = path 终点
             const [or, oc] = this.path[this.path.length - 1];
             this.grid[or][oc - this.colOffset] = TILE.ODOU;
-            // 初始已开辟区域：仅 6 个空白格（8×5 网格，避开路径）
-            const cleared = [[1, 3], [1, 4], [1, 5],
-                             [3, 3], [3, 4], [3, 5]];
-            for (const [r, c] of cleared) {
-                if (this.grid[r][c] === TILE.LOCKED) this.grid[r][c] = TILE.CLEARED;
-            }
         }
 
         render(container) {
@@ -104,11 +104,21 @@
                     cell.dataset.c = c;
                     cell.dataset.side = this.side;
                     const st = this.grid[r][c];
-                    if (st === TILE.PATH) cell.classList.add('path');
+                    const TILE_IMG = {
+                        [TILE.PATH]: 'canvas/daolu.png',
+                        [TILE.LOCKED]: 'canvas/huangdi.png',
+                        [TILE.CLEARED]: 'canvas/kongdi.png',
+                        [TILE.ENTRY]: 'canvas/diying.png',
+                        [TILE.ODOU]: 'canvas/adou.png'
+                    };
+                    cell.style.backgroundImage = `url(${TILE_IMG[st]})`;
+                    cell.style.backgroundSize = 'cover';
+                    cell.style.backgroundPosition = 'center';
+                    if (st === TILE.ENTRY) cell.classList.add('entry');
+                    else if (st === TILE.ODOU) cell.classList.add('odou');
+                    else if (st === TILE.PATH) cell.classList.add('path');
                     else if (st === TILE.LOCKED) cell.classList.add('locked');
                     else if (st === TILE.CLEARED) cell.classList.add('cleared');
-                    else if (st === TILE.ENTRY) { cell.classList.add('entry'); cell.textContent = '入'; }
-                    else if (st === TILE.ODOU) { cell.classList.add('path'); cell.textContent = '斗'; }
                     grid.appendChild(cell);
                 }
             }
@@ -178,6 +188,19 @@
                     cang.src = 'canvas/cang.png';
                     slot.appendChild(mu);
                     slot.appendChild(cang);
+                    if (card.level > 1) {
+                        const lv = document.createElement('span');
+                        lv.className = 'zyad-card-level';
+                        lv.textContent = 'Lv' + card.level;
+                        slot.appendChild(lv);
+                    }
+                } else if (card.type === '骑') {
+                    // 骑（旗枪）：卡牌也用旗标替换文字
+                    const cv = document.createElement('canvas');
+                    cv.width = 160; cv.height = 160;
+                    cv.className = 'zyad-qi-card-canvas';
+                    slot.appendChild(cv);
+                    new QiFlag(cv);
                     if (card.level > 1) {
                         const lv = document.createElement('span');
                         lv.className = 'zyad-card-level';
@@ -263,6 +286,14 @@
                     cang.src = 'canvas/cang.png';
                     defEl.appendChild(mu);
                     defEl.appendChild(cang);
+                } else if (type === '骑') {
+                    // 骑（旗枪）：用 canvas 旗枪动效替换文字
+                    const cv = document.createElement('canvas');
+                    cv.width = 320; cv.height = 320;
+                    cv.className = 'zyad-qi-canvas';
+                    defEl.classList.add('zyad-defender-qi');
+                    defEl.appendChild(cv);
+                    d.qiFlag = new QiFlag(cv);
                 } else {
                     defEl.textContent = cfg.name;
                 }
@@ -495,6 +526,10 @@
         /* 触发守护者攻击动画 */
         triggerAttackAnim(d) {
             if (!d.el) return;
+            if (d.type === '骑' && d.qiFlag) {
+                d.qiFlag.swing(); // 旗枪挥砍动效
+                return;
+            }
             const map = { '弓': 'attacking-bow', '枪': 'attacking-spear', '刀': 'attacking-blade', '骑': 'attacking-cavalry' };
             const cls = map[d.type];
             if (!cls) return;
@@ -787,7 +822,7 @@
                         this.grid[r][c] = TILE.CLEARED;
                         // 更新 DOM
                         const cell = this.gridEl.querySelector(`[data-r="${r}"][data-c="${c}"]`);
-                        if (cell) { cell.className = 'zyad-cell cleared'; cell.dataset.r = r; cell.dataset.c = c; }
+                        if (cell) { cell.className = 'zyad-cell cleared'; cell.style.backgroundImage = "url('canvas/kongdi.png')"; cell.dataset.r = r; cell.dataset.c = c; }
                         const idx = this.cards.indexOf(card);
                         this.useCard(idx);
                     }
@@ -898,6 +933,121 @@
         }
     }
 
+    // ─────────── 骑（旗枪）挥旗动效组件 ───────────
+    // 复用 canvas/qi.html 的逻辑：以旗面左端为轴，逆时针挥砍一圈，
+    // 攻击时宽度放大 FLAG_ATTACK_SCALE 倍，末段 progressive 缩回原样。
+    const FLAG_ATTACK_SCALE = 4;   // 攻击时宽度扩大倍数
+    const FLAG_ATTACK_HEIGHT_SCALE = 2;  // 攻击时高度扩大倍数
+    const FLAG_SWING_TURNS = 360;  // 逆时针挥砍一圈
+
+    // 图片只加载一次（缓存）
+    const _qiImgCache = { base: null, flag: null, loaded: 0 };
+    (function _loadQiImages() {
+        const a = new Image(), b = new Image();
+        a.onload = () => { _qiImgCache.base = a; _qiImgCache.loaded++; };
+        b.onload = () => { _qiImgCache.flag = b; _qiImgCache.loaded++; };
+        a.src = 'canvas/qi.png';
+        b.src = 'canvas/qi_qiang.png';
+    })();
+
+    class QiFlag {
+        constructor(canvas) {
+            this.canvas = canvas;
+            this.ctx = canvas.getContext('2d');
+            this.size = canvas.width || 160;
+            this.initialAngle = -10;     // 旗枪初始微抬角度
+            this.angle = this.initialAngle;
+            this.targetAngle = this.initialAngle;
+            this.state = 'IDLE';
+            this.widthScale = 1;
+            this.heightScale = 1;
+            this.shake = 0;
+            // 布局（pivot 居中，保证 360° 挥砍不裁切）
+            this.baseW = this.size * 0.28;   // 旗杆显示宽
+            this.baseH = this.size * 0.30;   // 旗杆显示高
+            this.flagW = this.size ;   // 旗面基础宽（×4 后仍可容纳）
+            this.flagH = this.flagW * 72 / 822 * 8;   // 旗面高度加倍
+            this.pivotX = this.size / 2;
+            this.pivotY = this.size * 0.36;  // 旗杆顶部（旗面挂载点）——上移使杆+旗面整体居中
+            _qiFlags.push(this);
+            this.render();
+        }
+        swing() {
+            if (this.state === 'ATTACK') return;
+            this.angle = this.initialAngle;
+            this.targetAngle = this.initialAngle - FLAG_SWING_TURNS; // 逆时针一圈
+            this.widthScale = FLAG_ATTACK_SCALE;
+            this.heightScale = FLAG_ATTACK_HEIGHT_SCALE;
+            this.shake = this.size * 0.08;
+            this.state = 'ATTACK';
+        }
+        render() {
+            const ctx = this.ctx, S = this.size;
+            ctx.clearRect(0, 0, S, S);
+            if (!this.canvas.isConnected) return; // 单位已移除，跳过
+            if (!_qiImgCache.base || !_qiImgCache.flag) return;
+
+            // 旗杆（底座 qi.png）抖动
+            let sx = 0, sy = 0;
+            if (this.shake > 0.3) {
+                sx = (Math.random() - 0.5) * this.shake;
+                sy = (Math.random() - 0.5) * this.shake;
+                this.shake *= 0.85;
+            } else { this.shake = 0; }
+
+            ctx.drawImage(
+                _qiImgCache.base,
+                this.pivotX - this.baseW / 2 + sx, this.pivotY + sy,
+                this.baseW, this.baseH
+            );
+
+            // 旗面（qi_qiang.png）挥砍推进：逆时针，末段渐进缩回宽度
+            if (this.state === 'ATTACK') {
+                const angleDiff = this.targetAngle - this.angle;
+                if (Math.abs(angleDiff) > 1) {
+                    this.angle += angleDiff * 0.25;
+                    const traveled = Math.abs(this.angle - this.initialAngle);
+                    const progress = Math.min(traveled / FLAG_SWING_TURNS, 1);
+                    if (progress < 0.6) {
+                        this.widthScale = FLAG_ATTACK_SCALE;
+                        this.heightScale = FLAG_ATTACK_HEIGHT_SCALE;
+                    } else {
+                        const t = (progress - 0.6) / 0.4;
+                        const ease = t * t * (3 - 2 * t); // smoothstep
+                        this.widthScale = FLAG_ATTACK_SCALE - (FLAG_ATTACK_SCALE - 1) * ease;
+                        this.heightScale = FLAG_ATTACK_HEIGHT_SCALE - (FLAG_ATTACK_HEIGHT_SCALE - 1) * ease;
+                    }
+                } else {
+                    this.angle = this.initialAngle;
+                    this.widthScale = 1;
+                    this.heightScale = 1;
+                    this.state = 'IDLE';
+                }
+            }
+
+            // 旗面 pivot 在左端，挂在旗杆顶部
+            const fw = this.flagW * this.widthScale;
+            const fh = this.flagH * this.heightScale;
+            ctx.save();
+            ctx.translate(this.pivotX + sx, this.pivotY + sy + this.size * 0.072);   // 旗面按比例下移（往上调3px，约7px显示）
+            ctx.rotate(this.angle * Math.PI / 180);
+            ctx.drawImage(_qiImgCache.flag, 0, -fh / 2, fw, fh);
+            ctx.restore();
+        }
+    }
+
+    // 共享渲染循环：驱动所有旗枪 canvas（自动剔除已脱离 DOM 的实例）
+    const _qiFlags = [];
+    function _qiRenderLoop() {
+        for (let i = _qiFlags.length - 1; i >= 0; i--) {
+            const qf = _qiFlags[i];
+            if (!qf.canvas.isConnected) { _qiFlags.splice(i, 1); continue; }
+            qf.render();
+        }
+        requestAnimationFrame(_qiRenderLoop);
+    }
+    requestAnimationFrame(_qiRenderLoop);
+
     // ─────────── 主循环 ───────────
     function loop(t) {
         if (!game.running) return;
@@ -972,6 +1122,7 @@
                 if (bf.grid[r][c] === TILE.LOCKED) {
                     bf.grid[r][c] = TILE.CLEARED;
                     cell.className = 'zyad-cell cleared';
+                    cell.style.backgroundImage = "url('canvas/kongdi.png')";
                     cell.dataset.r = r; cell.dataset.c = c; cell.dataset.side = 'left';
                     bf.useCard(card.idx);
                     game.selectedCard = null;
@@ -1068,8 +1219,8 @@
     // ─────────── 初始化 ───────────
     function initGame() {
         // 创建两个战场
-        game.leftBF = new Battlefield('left', 0, LEFT_PATH);
-        game.rightBF = new Battlefield('right', 0, RIGHT_PATH);
+        game.leftBF = new Battlefield('left', 0, LEFT_PATH, MY_MAP);
+        game.rightBF = new Battlefield('right', 0, RIGHT_PATH, FOE_MAP);
         game.leftBF.buildGrid();
         game.rightBF.buildGrid();
 

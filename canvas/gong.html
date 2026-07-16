@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Canvas 45度抛物线射箭效果 - 带状态切换</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #f5f5f5; /* 页面背景 */
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        canvas {
+            background-color: #ffffff; /* 画布白色底色 */
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border: 1px solid #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="gameCanvas" width="1000" height="600"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// ---------------- 配置区域 ----------------
+const BOW_SIZE = 80;    // 弓的大小
+const ARROW_SIZE = 80;  // 箭的大小
+const GRAVITY = 0.25;   // 重力加速度
+const DEFAULT_ANGLE = 0; // 休息状态下，弓默认指向的角度（0弧度代表水平向右，-Math.PI/4 代表斜向上45度）
+// -----------------------------------------
+
+// 资源加载
+const imgGongRest = new Image();  // 休息状态的弓
+imgGongRest.src = 'gong.png'; 
+
+const imgGongAttack = new Image(); // 攻击/拉开状态的弓
+imgGongAttack.src = 'gong2.png'; 
+
+const imgJian = new Image(); // 箭
+imgJian.src = 'jian.png'; 
+
+// 弓的初始状态
+const bow = {
+    x: 150,
+    y: 450,
+    angle: DEFAULT_ANGLE, // 初始为默认角度
+    scaleX: 1
+};
+
+// 鼠标状态
+const mouse = {
+    x: 0,
+    y: 0,
+    active: false
+};
+
+// 箭的数组
+const arrows = [];
+let shootTimer = null;
+
+// 监听鼠标事件
+canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = e.clientX - rect.left;
+    mouse.y = e.clientY - rect.top;
+});
+
+canvas.addEventListener('mouseenter', () => {
+    mouse.active = true;
+    shoot(); // 进入画布立即射一箭
+    shootTimer = setInterval(shoot, 1000); // 随后每秒射一箭
+});
+
+canvas.addEventListener('mouseleave', () => {
+    mouse.active = false;
+    clearInterval(shootTimer);
+    shootTimer = null;
+});
+
+// 射箭逻辑
+function shoot() {
+    if (!mouse.active) return;
+
+    // 1. 计算抛物线初速度
+    const Sx = mouse.x - bow.x;
+    const Sy = mouse.y - bow.y;
+
+    if (Sy + Math.abs(Sx) <= 0) return; 
+
+    // 根据 45 度抛物线公式计算 Vx 和 Vy
+    const signX = Sx >= 0 ? 1 : -1;
+    const vX = signX * Math.sqrt((GRAVITY * Sx * Sx) / (2 * (Sy + Math.abs(Sx))));
+    const vY = -Math.abs(vX); 
+
+    // 2. 触发弓的反向弯曲形变
+    bow.scaleX = -0.6; 
+    
+    // 3. 将新箭加入数组
+    arrows.push({
+        x: bow.x,
+        y: bow.y,
+        vx: vX,
+        vy: vY,
+        angle: Math.atan2(vY, vX)
+    });
+}
+
+// 渲染与更新主循环
+function update() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 1. 绘制鼠标目标点反馈（仅在活动时显示）
+    if (mouse.active) {
+        ctx.beginPath();
+        ctx.arc(mouse.x, mouse.y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(231, 76, 60, 0.6)';
+        ctx.fill();
+    }
+
+    // 2. 更新并绘制弓
+    bow.scaleX += (1 - bow.scaleX) * 0.12; // 形变回弹
+
+    // 角度计算：如果活跃则指向鼠标，如果不活跃则平滑旋转回默认角度
+    if (mouse.active) {
+        bow.angle = Math.atan2(mouse.y - bow.y, mouse.x - bow.x);
+    } else {
+        // 缓动旋转回默认角度
+        bow.angle += (DEFAULT_ANGLE - bow.angle) * 0.1;
+    }
+
+    ctx.save();
+    ctx.translate(bow.x, bow.y);
+    ctx.rotate(bow.angle);
+    ctx.scale(bow.scaleX, 1); 
+    
+    // 根据状态选择绘制对应的图片
+    if (mouse.active) {
+        // 攻击状态：使用 gong2.png
+        if (imgGongAttack.complete) {
+            ctx.drawImage(imgGongAttack, -BOW_SIZE / 2, -BOW_SIZE / 2, 40, 100);
+        } else {
+            drawFallbackBow('#e74c3c'); // 攻击状态红色备用线
+        }
+    } else {
+        // 休息状态：使用 gong.png
+        if (imgGongRest.complete) {
+            ctx.drawImage(imgGongRest, -BOW_SIZE / 2, -BOW_SIZE / 2, 40, 100);
+        } else {
+            drawFallbackBow('#333333'); // 休息状态灰色备用线
+        }
+    }
+    ctx.restore();
+
+    // 3. 更新并绘制所有飞行的箭
+    for (let i = arrows.length - 1; i >= 0; i--) {
+        const arrow = arrows[i];
+
+        // 物理逻辑更新
+        arrow.vy += GRAVITY; 
+        arrow.x += arrow.vx;
+        arrow.y += arrow.vy;
+
+        // 让箭旋转切合抛物线轨迹
+        arrow.angle = Math.atan2(arrow.vy, arrow.vx);
+
+        ctx.save();
+        ctx.translate(arrow.x, arrow.y);
+        ctx.rotate(arrow.angle);
+
+        if (imgJian.complete) {
+            const arrowHeight = 15;
+            ctx.drawImage(imgJian, -ARROW_SIZE / 2, -arrowHeight / 2, ARROW_SIZE, arrowHeight);
+        } else {
+            // 备用简易红线
+            ctx.strokeStyle = '#e74c3c';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(-ARROW_SIZE / 2, 0);
+            ctx.lineTo(ARROW_SIZE / 2, 0);
+            ctx.stroke();
+        }
+        ctx.restore();
+
+        // 边界检测
+        if (arrow.y > canvas.height + 100 || arrow.x < -100 || arrow.x > canvas.width + 100) {
+            arrows.splice(i, 1);
+        }
+    }
+
+    requestAnimationFrame(update);
+}
+
+// 绘制未加载图片时的备用弓图形
+function drawFallbackBow(color) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(-5, 0, BOW_SIZE / 2, -Math.PI / 2, Math.PI / 2);
+    ctx.stroke();
+}
+
+// 启动
+requestAnimationFrame(update);
+</script>
+
+</body>
+</html>

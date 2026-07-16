@@ -3,193 +3,195 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Canvas 网页动效 - 顺时针弧线挥砍</title>
+    <title>Canvas 仅刀柄挥砍（以右上角为中心）</title>
     <style>
-        body { 
-            margin: 0; 
-            padding: 0; 
-            background-color: #1a1a1a; 
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0f1015;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
+            overflow: hidden;
+            color: #fff;
+            font-family: sans-serif;
         }
-        #canvas-container { 
-            position: relative; 
-            width: 800px; 
-            height: 600px; 
-            background-color: #222; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        canvas {
+            background-color: #1a1b26;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
             border-radius: 8px;
-            overflow: hidden; 
-        }
-        #canvas { 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            cursor: crosshair; 
+            cursor: crosshair;
         }
     </style>
 </head>
 <body>
 
-<div id="canvas-container">
-    <canvas id="canvas" width="800" height="600"></canvas>
-</div>
+    <canvas id="swordCanvas" width="600" height="600"></canvas>
 
 <script>
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    const container = document.getElementById('canvas-container');
+const canvas = document.getElementById('swordCanvas');
+const ctx = canvas.getContext('2d');
 
-    // =========================================================================
-    // 1. 定义独立的 Sprite (精灵) 结构
-    // =========================================================================
-    class Sprite {
-        constructor(imgElement, x, y, width, height, angle = 0, anchorX = 0.5, anchorY = 0.5) {
-            this.img = imgElement;      
-            this.x = x;                 
-            this.y = y;                 
-            this.w = width;             
-            this.h = height;            
-            this.angle = angle;         
-            this.anchorX = anchorX;     
-            this.anchorY = anchorY;     
-            
-            this.initialX = x;
-            this.initialY = y;
-            this.initialAngle = angle; 
+// --- 1. 图片资源加载 ---
+const imgDao = new Image();
+imgDao.src = 'dao.png'; // 刀身图片（静止）
+const imgDaobing = new Image();
+imgDaobing.src = 'daobing.png'; // 刀柄图片（参与挥砍旋转）
 
-            this.shakeX = 0;
-            this.shakeY = 0;
-        }
+let useFallback = false; 
 
-        draw(context) {
-            context.save();
-            const pivotX = this.x + this.w * this.anchorX;
-            const pivotY = this.y + this.h * this.anchorY;
-
-            context.translate(pivotX + this.shakeX, pivotY + this.shakeY);
-            context.rotate(this.angle * Math.PI / 180);
-            
-            context.drawImage(
-                this.img, 
-                -this.w * this.anchorX, 
-                -this.h * this.anchorY, 
-                this.w, 
-                this.h
-            );
-            context.restore();
-        }
+function checkImages() {
+    if (!imgDao.complete || imgDao.naturalWidth === 0 || !imgDaobing.complete || imgDaobing.naturalWidth === 0) {
+        useFallback = true;
     }
+    draw();
+}
 
-    // =========================================================================
-    // 2. 图片加载与初始化
-    // =========================================================================
-    const img1 = new Image();
-    const img2 = new Image();
-    let imagesLoaded = 0;
+imgDao.onload = imgDaobing.onload = draw;
+imgDao.onerror = imgDaobing.onerror = () => {
+    useFallback = true;
+    draw();
+};
 
-    let weaponHandle; 
-    let weaponBlade;  
+// --- 2. 核心物理与动画变量 ---
+const pivot = { x: 300, y: 300 }; // 旋转中心点（这也是刀柄右上角定位的核心点）
+const initAngle = 0;    // 初始位置
 
-    img1.onload = checkImagesLoaded;
-    img2.onload = checkImagesLoaded;
-    
-    img1.src = 'dao.png'; 
-    img2.src = 'daobing.png';     
+let currentAngle = initAngle;
+let isAnimating = false;
+let animStartTime = 0;
+const duration = 250;             // 挥砍速度（毫秒）
 
-    let startX, startY;
+let startAngle = initAngle;
+let targetAngle = initAngle;
+let trailStartAngle = initAngle;  
 
-    function checkImagesLoaded() {
-        imagesLoaded++;
-        if (imagesLoaded === 2) {
-            const handleW = 120;
-            const handleH = 120;
-            weaponHandle = new Sprite(img1, 400 - handleW / 2, 300 - handleH / 2, handleW, handleH);
+// --- 3. 鼠标点击事件监听（逆时针算法） ---
+canvas.addEventListener('mousedown', (e) => {
+    if (isAnimating) return; 
 
-            const bladeW = 80;
-            const bladeH = 80;
-            startX = 400 - bladeW / 2;
-            startY = 300 - bladeH / 2;
-            
-            // 初始角度 250 度，挂载轴心 (0.8, 0.8)
-            weaponBlade = new Sprite(img2, startX - 40, startY - 40, bladeW, bladeH, 250, 0.8, 0.8);
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
 
-            animate();
-        }
-    }
+    const clickAngle = Math.atan2(mouseY - pivot.y, mouseX - pivot.x);
 
-    // =========================================================================
-    // 3. 动效与物理状态控制
-    // =========================================================================
-    let targetAngle = 0;    
-    let state = 'IDLE';     
-    let shakeIntensity = 0; 
+    // 确保无论点击哪里，都逆时针（角度减小）砍回初始朝上的位置
+    let diff = (clickAngle - initAngle) % (2 * Math.PI);
+    if (diff < 0) diff += 2 * Math.PI;
 
-    function animate() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    startAngle = clickAngle;
+    targetAngle = clickAngle - diff;
+    trailStartAngle = clickAngle; 
 
-        // 1. 处理刀柄抖动
-        if (shakeIntensity > 0.1) {
-            weaponHandle.shakeX = (Math.random() - 0.5) * shakeIntensity;
-            weaponHandle.shakeY = (Math.random() - 0.5) * shakeIntensity;
-            shakeIntensity *= 0.85; 
-        } else {
-            weaponHandle.shakeX = 0;
-            weaponHandle.shakeY = 0;
-        }
-        weaponHandle.draw(ctx);
+    isAnimating = true;
+    animStartTime = performance.now();
+    requestAnimationFrame(animate);
+});
 
-        // ==================== 2. 处理刀刃挥砍 ====================
-        if (weaponBlade) {
-            if (state === 'ATTACK') {
-                // 朝目标角度平滑旋转（顺时针增大 / 逆时针减小）
-                const angleDiff = targetAngle - weaponBlade.angle;
+// --- 4. 动画循环 ---
+function animate(timestamp) {
+    if (!isAnimating) return;
 
-                if (Math.abs(angleDiff) > 1) {
-                    weaponBlade.angle += angleDiff * 0.25; // 0.25 控制劈砍速度
-                } else {
-                    // 砍完后，回到初始位置 250 度（防止数值无限累加超出 360）
-                    weaponBlade.angle = weaponBlade.initialAngle;
-                    state = 'IDLE';
-                }
-            }
+    const elapsed = timestamp - animStartTime;
+    const progress = Math.min(elapsed / duration, 1);
 
-            weaponBlade.draw(ctx);
-        }
+    // easeOutCubic 缓动
+    const ease = 1 - Math.pow(1 - progress, 3);
+    currentAngle = startAngle + (targetAngle - startAngle) * ease;
 
+    draw();
+
+    if (progress < 1) {
         requestAnimationFrame(animate);
+    } else {
+        isAnimating = false;
+        currentAngle = initAngle; // 动画结束后刀柄复位
+        draw();
+    }
+}
+
+// --- 5. 渲染函数 ---
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 绘制提示文字
+    ctx.fillStyle = '#a9b1d6';
+    ctx.font = '16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('点击任意位置：刀柄以「右上角」为中心逆时针挥砍', canvas.width / 2, 50);
+
+    // ==========================================
+    // 步骤 A: 绘制静止不动的 刀身 (dao.png)
+    // ==========================================
+    if (!useFallback) {
+        const daoW = imgDao.width;
+        const daoH = imgDao.height;
+        ctx.save();
+        ctx.translate(pivot.x, pivot.y);
+        ctx.drawImage(imgDao, -daoW / 2, -daoH, daoW, daoH);
+        ctx.restore();
+    } else {
+        // 备用矢量刀身（静止）
+        ctx.save();
+        ctx.translate(pivot.x, pivot.y);
+        ctx.fillStyle = '#c0caf5';
+        ctx.beginPath();
+        ctx.moveTo(-6, -6);
+        ctx.lineTo(-6, -140);
+        ctx.quadraticCurveTo(-6, -165, 4, -160);
+        ctx.lineTo(6, -6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
     }
 
-    // ==================== 4. 点击事件：从固定角度起手，挥砍回初始 250° ====================
-    const SWING_START_ANGLE = 110; // 起手角度（固定，450≡90°）
+    // ==========================================
+    // 步骤 B: 绘制挥砍蓝色刀光
+    // ==========================================
+    if (isAnimating) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(0, 220, 255, 0.5)';
+        ctx.lineWidth = 10;
+        ctx.lineCap = 'round';
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#00f0ff';
 
-    container.addEventListener('mousedown', () => {
-        if (state === 'IDLE' && weaponBlade) {
-            // 1. 起手角度：固定
-            const startAngle = SWING_START_ANGLE;
+        ctx.beginPath();
+        // 刀光半径设为 100 像素，完美匹配刀柄旋转扫过的弧度
+        ctx.arc(pivot.x, pivot.y, 100, trailStartAngle, currentAngle, true);
+        ctx.stroke();
+        ctx.restore();
+    }
 
-            // 2. 瞬间将刀刃摆到起手方向
-            weaponBlade.angle = startAngle;
+    // ==========================================
+    // 步骤 C: 绘制运动旋转的 刀柄 (daobing.png)
+    // ==========================================
+    ctx.save();
+    ctx.translate(pivot.x, pivot.y); // 将画布原点移到旋转中心
+    ctx.rotate(currentAngle);        // 绕该点进行旋转
 
-            // 3. 终点：初始位置 250 度
-            const destination = weaponBlade.initialAngle;
+    if (!useFallback) {
+        const bingW = 55;   // 刀柄宽度
+        const bingH = 100;  // 刀柄高度
+        
+        // 【核心修改】：通过将 X 偏移量设为 -bingW，Y 偏移量设为 0
+        // 使图片的右上角（即图片内部坐标 [bingW, 0]）与画布旋转中心 [0, 0] 重合。
+        ctx.drawImage(imgDaobing, -50, -90, bingW, bingH);
+    } else {
+        // 备用矢量刀柄（动态旋转，右上角对准旋转中心）
+        ctx.fillStyle = '#3a2010'; 
+        ctx.fillRect(-20, 0, 20, 80);
+        ctx.fillStyle = '#e0af68'; 
+        ctx.fillRect(-35, 0, 35, 12);
+    }
 
-            // 4. 沿最短弧线挥砍回初始位置
-            const dCw = (destination - startAngle + 360) % 360; // 顺时针需转过的角度
-            // if (dCw <= 180) {
-            //     targetAngle = startAngle + dCw;         // 顺时针（向下）挥砍
-            // } else {
-            //     targetAngle = startAngle - (360 - dCw);  // 逆时针最短直达
-            // }
-            targetAngle = startAngle - (360 - dCw);
+    ctx.restore();
+}
 
-            // 5. 触发效果
-            shakeIntensity = 12;
-            state = 'ATTACK';
-        }
-    });
+// 延迟检查图片是否成功加载
+setTimeout(checkImages, 100);
 </script>
 
 </body>

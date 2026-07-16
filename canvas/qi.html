@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas 网页动效 - 旗枪挥动</title>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background-color: #1a1a1a; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        #canvas-container { 
+            position: relative; 
+            width: 800px; 
+            height: 600px; 
+            background-color: #222; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border-radius: 8px;
+            overflow: hidden; 
+        }
+        #canvas { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            cursor: crosshair; 
+        }
+    </style>
+</head>
+<body>
+
+<div id="canvas-container">
+    <canvas id="canvas" width="800" height="600"></canvas>
+</div>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const container = document.getElementById('canvas-container');
+
+    // =========================================================================
+    // 1. 定义独立的 Sprite (精灵) 结构
+    // =========================================================================
+    class Sprite {
+        constructor(imgElement, x, y, width, height, angle = 0, anchorX = 0.5, anchorY = 0.5) {
+            this.img = imgElement;      
+            this.x = x;                 
+            this.y = y;                 
+            this.w = width;             
+            this.h = height;            
+            this.angle = angle;         
+            this.anchorX = anchorX;     
+            this.anchorY = anchorY;     
+            
+            this.initialX = x;
+            this.initialY = y;
+            this.initialAngle = angle; 
+
+            this.shakeX = 0;
+            this.shakeY = 0;
+            this.widthScale = 1; // 挥砍时宽度放大倍数
+        }
+
+        draw(context) {
+            context.save();
+            const pivotX = this.x + this.w * this.anchorX;
+            const pivotY = this.y + this.h * this.anchorY;
+
+            context.translate(pivotX + this.shakeX, pivotY + this.shakeY);
+            context.rotate(this.angle * Math.PI / 180);
+            
+            const drawW = this.w * this.widthScale;
+            context.drawImage(
+                this.img, 
+                -drawW * this.anchorX, 
+                -this.h * this.anchorY, 
+                drawW, 
+                this.h
+            );
+            context.restore();
+        }
+    }
+
+    // =========================================================================
+    // 2. 图片加载与初始化
+    // =========================================================================
+    const img1 = new Image();
+    const img2 = new Image();
+    let imagesLoaded = 0;
+
+    let weaponBase;   // qi.png 底座
+    let weaponFlag;   // qi_qiang.png 旗枪横幅
+
+    img1.onload = checkImagesLoaded;
+    img2.onload = checkImagesLoaded;
+    
+    img1.src = 'qi.png'; 
+    img2.src = 'qi_qiang.png';     
+
+    function checkImagesLoaded() {
+        imagesLoaded++;
+        if (imagesLoaded === 2) {
+            // --- 底座 qi.png (109x120) 原始尺寸居中显示 ---
+            const baseW = 109;
+            const baseH = 120;
+            weaponBase = new Sprite(img1, 400 - baseW / 2, 300 - baseH / 2, baseW, baseH);
+
+            // --- 旗枪横幅 qi_qiang.png (822x72) 缩小到十分之一，枢轴在左端（挂在旗杆上）---
+            const flagW = 822 / 15;  // 82.2
+            const flagH = 72 / 5;   // 7.2
+            // 横幅左端挂在底座顶部中心附近
+            const flagX = 400;
+            const flagY = 320 - baseH / 2; // 与底座顶部对齐
+            const FLAG_INITIAL_ANGLE = -10; // 旗枪初始微抬角度
+            weaponFlag = new Sprite(img2, flagX, flagY, flagW, flagH, FLAG_INITIAL_ANGLE, 0, 0.5);
+
+            animate();
+        }
+    }
+
+    // =========================================================================
+    // 3. 动效与物理状态控制
+    // =========================================================================
+    let targetAngle = 0;    
+    let state = 'IDLE';     
+    let shakeIntensity = 0; 
+
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 1. 处理底座抖动
+        if (shakeIntensity > 0.1) {
+            weaponBase.shakeX = (Math.random() - 0.5) * shakeIntensity;
+            weaponBase.shakeY = (Math.random() - 0.5) * shakeIntensity;
+            shakeIntensity *= 0.85; 
+        } else {
+            weaponBase.shakeX = 0;
+            weaponBase.shakeY = 0;
+        }
+        weaponBase.draw(ctx);
+
+        // ==================== 2. 处理旗枪挥动 ====================
+        if (weaponFlag) {
+            if (state === 'ATTACK') {
+                // 朝目标角度平滑旋转（顺时针增大 / 逆时针减小）
+                const angleDiff = targetAngle - weaponFlag.angle;
+
+                if (Math.abs(angleDiff) > 1) {
+                    weaponFlag.angle += angleDiff * 0.25; // 0.25 控制挥动速度
+
+                    // 进度 0→1：前 60% 保持放大宽度，后 40% 用 smoothstep 渐进缩回原样
+                    const traveled = Math.abs(weaponFlag.angle - weaponFlag.initialAngle);
+                    const progress = Math.min(traveled / FLAG_SWING_TURNS, 1);
+                    if (progress < 0.6) {
+                        weaponFlag.widthScale = FLAG_ATTACK_SCALE;
+                    } else {
+                        const t = (progress - 0.6) / 0.4;        // 0→1
+                        const ease = t * t * (3 - 2 * t);        // smoothstep 平滑
+                        weaponFlag.widthScale = FLAG_ATTACK_SCALE - (FLAG_ATTACK_SCALE - 1) * ease; // 4 → 1 渐进缩回
+                    }
+                } else {
+                    // 挥完后，回到初始位置（防止数值无限累加超出 360）
+                    weaponFlag.angle = weaponFlag.initialAngle;
+                    weaponFlag.widthScale = 1; // 恢复宽度
+                    state = 'IDLE';
+                }
+            }
+
+            weaponFlag.draw(ctx);
+        }
+
+        requestAnimationFrame(animate);
+    }
+
+    // ==================== 4. 点击事件：以图片二左边为轴，挥砍一圈，挥砍时宽度扩大 4 倍 ====================
+    const FLAG_SWING_TURNS = 360; // 挥砍一圈（逆时针 360°）
+    const FLAG_ATTACK_SCALE = 4;  // 攻击时宽度扩大倍数
+
+    container.addEventListener('mousedown', () => {
+        if (state === 'IDLE' && weaponFlag) {
+            // 1. 从初始角度起手
+            weaponFlag.angle = weaponFlag.initialAngle;
+
+            // 2. 目标：逆时针挥砍一整圈后回到初始角度
+            targetAngle = weaponFlag.initialAngle - FLAG_SWING_TURNS;
+
+            // 3. 挥砍过程中图片宽度扩大 4 倍
+            weaponFlag.widthScale = FLAG_ATTACK_SCALE;
+
+            // 4. 触发底座抖动
+            shakeIntensity = 12;
+            state = 'ATTACK';
+        }
+    });
+</script>
+
+</body>
+</html>
