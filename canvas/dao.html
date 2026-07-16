@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas 网页动效 - 顺时针弧线挥砍</title>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background-color: #1a1a1a; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        #canvas-container { 
+            position: relative; 
+            width: 800px; 
+            height: 600px; 
+            background-color: #222; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border-radius: 8px;
+            overflow: hidden; 
+        }
+        #canvas { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            cursor: crosshair; 
+        }
+    </style>
+</head>
+<body>
+
+<div id="canvas-container">
+    <canvas id="canvas" width="800" height="600"></canvas>
+</div>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const container = document.getElementById('canvas-container');
+
+    // =========================================================================
+    // 1. 定义独立的 Sprite (精灵) 结构
+    // =========================================================================
+    class Sprite {
+        constructor(imgElement, x, y, width, height, angle = 0, anchorX = 0.5, anchorY = 0.5) {
+            this.img = imgElement;      
+            this.x = x;                 
+            this.y = y;                 
+            this.w = width;             
+            this.h = height;            
+            this.angle = angle;         
+            this.anchorX = anchorX;     
+            this.anchorY = anchorY;     
+            
+            this.initialX = x;
+            this.initialY = y;
+            this.initialAngle = angle; 
+
+            this.shakeX = 0;
+            this.shakeY = 0;
+        }
+
+        draw(context) {
+            context.save();
+            const pivotX = this.x + this.w * this.anchorX;
+            const pivotY = this.y + this.h * this.anchorY;
+
+            context.translate(pivotX + this.shakeX, pivotY + this.shakeY);
+            context.rotate(this.angle * Math.PI / 180);
+            
+            context.drawImage(
+                this.img, 
+                -this.w * this.anchorX, 
+                -this.h * this.anchorY, 
+                this.w, 
+                this.h
+            );
+            context.restore();
+        }
+    }
+
+    // =========================================================================
+    // 2. 图片加载与初始化
+    // =========================================================================
+    const img1 = new Image();
+    const img2 = new Image();
+    let imagesLoaded = 0;
+
+    let weaponHandle; 
+    let weaponBlade;  
+
+    img1.onload = checkImagesLoaded;
+    img2.onload = checkImagesLoaded;
+    
+    img1.src = 'dao.png'; 
+    img2.src = 'daobing.png';     
+
+    let startX, startY;
+
+    function checkImagesLoaded() {
+        imagesLoaded++;
+        if (imagesLoaded === 2) {
+            const handleW = 120;
+            const handleH = 120;
+            weaponHandle = new Sprite(img1, 400 - handleW / 2, 300 - handleH / 2, handleW, handleH);
+
+            const bladeW = 80;
+            const bladeH = 80;
+            startX = 400 - bladeW / 2;
+            startY = 300 - bladeH / 2;
+            
+            // 初始角度 250 度，挂载轴心 (0.8, 0.8)
+            weaponBlade = new Sprite(img2, startX - 40, startY - 40, bladeW, bladeH, 250, 0.8, 0.8);
+
+            animate();
+        }
+    }
+
+    // =========================================================================
+    // 3. 动效与物理状态控制
+    // =========================================================================
+    let targetAngle = 0;    
+    let state = 'IDLE';     
+    let shakeIntensity = 0; 
+
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 1. 处理刀柄抖动
+        if (shakeIntensity > 0.1) {
+            weaponHandle.shakeX = (Math.random() - 0.5) * shakeIntensity;
+            weaponHandle.shakeY = (Math.random() - 0.5) * shakeIntensity;
+            shakeIntensity *= 0.85; 
+        } else {
+            weaponHandle.shakeX = 0;
+            weaponHandle.shakeY = 0;
+        }
+        weaponHandle.draw(ctx);
+
+        // ==================== 2. 处理刀刃挥砍 ====================
+        if (weaponBlade) {
+            if (state === 'ATTACK') {
+                // 朝目标角度平滑旋转（顺时针增大 / 逆时针减小）
+                const angleDiff = targetAngle - weaponBlade.angle;
+
+                if (Math.abs(angleDiff) > 1) {
+                    weaponBlade.angle += angleDiff * 0.25; // 0.25 控制劈砍速度
+                } else {
+                    // 砍完后，回到初始位置 250 度（防止数值无限累加超出 360）
+                    weaponBlade.angle = weaponBlade.initialAngle;
+                    state = 'IDLE';
+                }
+            }
+
+            weaponBlade.draw(ctx);
+        }
+
+        requestAnimationFrame(animate);
+    }
+
+    // ==================== 4. 点击事件：从固定角度起手，挥砍回初始 250° ====================
+    const SWING_START_ANGLE = 110; // 起手角度（固定，450≡90°）
+
+    container.addEventListener('mousedown', () => {
+        if (state === 'IDLE' && weaponBlade) {
+            // 1. 起手角度：固定
+            const startAngle = SWING_START_ANGLE;
+
+            // 2. 瞬间将刀刃摆到起手方向
+            weaponBlade.angle = startAngle;
+
+            // 3. 终点：初始位置 250 度
+            const destination = weaponBlade.initialAngle;
+
+            // 4. 沿最短弧线挥砍回初始位置
+            const dCw = (destination - startAngle + 360) % 360; // 顺时针需转过的角度
+            // if (dCw <= 180) {
+            //     targetAngle = startAngle + dCw;         // 顺时针（向下）挥砍
+            // } else {
+            //     targetAngle = startAngle - (360 - dCw);  // 逆时针最短直达
+            // }
+            targetAngle = startAngle - (360 - dCw);
+
+            // 5. 触发效果
+            shakeIntensity = 12;
+            state = 'ATTACK';
+        }
+    });
+</script>
+
+</body>
+</html>
