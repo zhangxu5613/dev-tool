@@ -130,7 +130,7 @@ function draw() {
         const daoH = imgDao.height;
         ctx.save();
         ctx.translate(pivot.x, pivot.y);
-        ctx.drawImage(imgDao, -daoW / 2, -daoH, daoW, daoH);
+        ctx.drawImage(imgDao, -daoW / 2 + 18, -daoH + 90, daoW, daoH);
         ctx.restore();
     } else {
         // 备用矢量刀身（静止）
@@ -178,7 +178,7 @@ function draw() {
         
         // 【核心修改】：通过将 X 偏移量设为 -bingW，Y 偏移量设为 0
         // 使图片的右上角（即图片内部坐标 [bingW, 0]）与画布旋转中心 [0, 0] 重合。
-        ctx.drawImage(imgDaobing, -50, -90, bingW, bingH);
+        ctx.drawImage(imgDaobing, -30, 0, bingW, bingH);
     } else {
         // 备用矢量刀柄（动态旋转，右上角对准旋转中心）
         ctx.fillStyle = '#3a2010'; 
