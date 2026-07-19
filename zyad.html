@@ -279,14 +279,19 @@
             vertical-align: middle;
             transform: translate(-2px, 6px);
         }
+        /* 等级角标：挂在 .zyad-cell 上，固定右上角内，不随骑兵 scale(2) 溢出 */
         .zyad-cell .zyad-defender-level {
-            position: absolute; top: 1px; right: 2px;
-            font-size: 8px; color: #b06820; font-family: sans-serif;
-            font-weight: 700;
+            position: absolute; top: 1px; right: 1px;
+            padding: 0 2px;
+            font-size: 9px; line-height: 1.2; color: #b06820;
+            font-family: sans-serif; font-weight: 700;
+            background: rgba(255, 245, 214, 0.85);
+            border-radius: 3px 3px 0 3px;
+            pointer-events: none; z-index: 3;
         }
         .zyad-cell .zyad-defender-level.lv3 { color: #7c3aed; }
         .zyad-cell .zyad-defender-level.lv4 { color: #dc2626; }
-        .zyad-cell .zyad-defender-level.lv5 { color: #fbbf24; text-shadow: 0 0 3px #f59e0b; }
+        .zyad-cell .zyad-defender-level.lv5 { color: #b45309; background: #fde68a; }
         /* 刀攻击触发：金光脉冲（明确反馈攻击已发生） */
         .zyad-cell .zyad-defender.zyad-blade-attack {
             animation: zyad-blade-flash 0.4s ease-out;
@@ -605,9 +610,9 @@
         };
 
         const ENEMIES = {
-            兵: { name: '兵', speed: 0.4, damage: 1, reward: 1 },
-            卒: { name: '卒', speed: 0.4, damage: 1, reward: 2 },
-            将: { name: '将', speed: 0.4, damage: 2, reward: 5 }
+            兵: { name: '兵', speed: 0.8, damage: 1, reward: 1 },
+            卒: { name: '卒', speed: 0.8, damage: 1, reward: 2 },
+            将: { name: '将', speed: 0.8, damage: 2, reward: 5 }
         };
 
         const CARD_TYPES = Object.keys(DEFENDERS);
@@ -743,7 +748,8 @@
             }
 
             rollCard() {
-                return '弓';
+                if (Math.random() < 0.05) return 'shovel';
+                return CARD_TYPES[Math.floor(Math.random() * CARD_TYPES.length)];
             }
 
             renderCards() {
@@ -836,11 +842,9 @@
                 this.grain -= this.recruitCost;
                 this.recruitCost += 2;
                 this.cards = [];
-                // 调试期：固定 4 张弓 + 1 张铲子（既能开地又能测弓）
-                for (let i = 0; i < 4; i++) {
-                    this.cards.push({ type: '弓', level: 1, used: false });
+                for (let i = 0; i < 5; i++) {
+                    this.cards.push({ type: this.rollCard(), level: 1, used: false });
                 }
-                this.cards.push({ type: 'shovel', level: 1, used: false });
                 return true;
             }
 
@@ -897,9 +901,9 @@
                     defEl.dataset.level = level;
                     const lvl = document.createElement('div');
                     lvl.className = 'zyad-defender-level';
-                    lvl.textContent = 'Lv' + level;
-                    defEl.appendChild(lvl);
+                    lvl.textContent = String(level);
                     cell.appendChild(defEl);
+                    cell.appendChild(lvl);
                     d.el = defEl;
                     d.levelEl = lvl;
                 }
@@ -913,7 +917,7 @@
                 d.maxHp = Math.round(cfg.hp * Math.pow(1.5, d.level - 1));
                 d.hp = d.maxHp;
                 if (d.levelEl) {
-                    d.levelEl.textContent = 'Lv' + d.level;
+                    d.levelEl.textContent = String(d.level);
                     d.levelEl.className = 'zyad-defender-level' + (d.level >= 3 ? ' lv' + d.level : '');
                 }
                 this.updateDefenderHP(d);
@@ -984,7 +988,7 @@
                 const stats = this.getEffectiveStats(d);
                 const freq = (1 / stats.atkInterval).toFixed(2);
                 this.infoTip.innerHTML =
-                    `<div class="zyad-info-name">${DEFENDERS[d.type].name} · Lv${d.level}</div>` +
+                    `<div class="zyad-info-name">${DEFENDERS[d.type].name} · ${d.level}</div>` +
                     `<div class="zyad-info-row">攻击力 <b>${stats.damage.toFixed(1)}</b></div>` +
                     `<div class="zyad-info-row">范围 <b>${stats.range}</b> 格</div>` +
                     `<div class="zyad-info-row">频率 <b>${freq}</b> 次/秒</div>` +
@@ -1571,7 +1575,7 @@
 
         // ─────────── 波次 ───────────
         function buildWavePlan(wave) {
-            const count = 3; // 调试期：每波刷 3 个（基线 10+(wave-1)）
+            const count = 10 + (wave - 1); // 每波敌数（基线）
             const plan = [];
             for (let i = 0; i < count; i++) {
                 const r = Math.random();
@@ -1601,7 +1605,7 @@
                         const type = game.spawnPlan[game.spawnIndex];
                         game.leftBF.spawnEnemy(type, game.wave);
                         game.spawnIndex++;
-                        game.spawnTimer = 2.5; // 调试期：刷怪间隔减半速度（基线 1.25）
+                        game.spawnTimer = 1.25; // 刷怪间隔（基线）
                     }
                 } else if (game.leftBF.enemies.length === 0) {
                     game.waveActive = false;
@@ -2028,10 +2032,20 @@
                 } else {
                     if (existingDef && existingDef.type === card.type && existingDef.level === card.level && existingDef.level < 5) {
                         bf.levelUpDefender(existingDef);
-                        bf.showFloat(c, r, 'Lv' + existingDef.level, 'crit');
+                        bf.showFloat(c, r, String(existingDef.level), 'crit');
                         bf.useCard(card.idx);
                         game.selectedCard = null;
                         bf.renderCards();
+                    } else if (existingDef) {
+                        // 已占用且不可合并 → 与场上士兵互换位置：
+                        // 卡牌上场，被挤下的士兵退回原卡牌槽（used=false），等效位置互换
+                        const displaced = { type: existingDef.type, level: existingDef.level, used: false };
+                        bf.removeDefender(existingDef);
+                        bf.placeDefender(r, c, card.type, card.level);
+                        bf.cards[card.idx] = displaced;
+                        game.selectedCard = null;
+                        bf.renderCards();
+                        bf.showFloat(c, r, '换位', 'crit');
                     } else if (bf.grid[r][c] === TILE.CLEARED && !existingDef) {
                         bf.placeDefender(r, c, card.type, card.level);
                         bf.useCard(card.idx);
@@ -2048,7 +2062,7 @@
                     if (sel.defender.type === existingDef.type && sel.defender.level === existingDef.level && existingDef.level < 5) {
                         // 同类同级 → 合并升级
                         bf.mergeDefenders(existingDef, sel.defender);
-                        bf.showFloat(c, r, 'Lv' + existingDef.level, 'crit');
+                        bf.showFloat(c, r, String(existingDef.level), 'crit');
                     } else {
                         // 两个格子都有士兵且不可合并 → 交换位置
                         bf.swapDefenders(sel.defender, existingDef);
