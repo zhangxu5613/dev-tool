@@ -172,81 +172,85 @@
             const slotsEl = document.getElementById('zyadCardSlots');
             if (!slotsEl || this.isAI) return;
             slotsEl.innerHTML = '';
-            this.cards.forEach((card, idx) => {
+            // 始终渲染 5 个征兵格：有可用卡显示卡面，已用/空则显示空白格
+            for (let idx = 0; idx < 5; idx++) {
+                const card = this.cards[idx];
                 const slot = document.createElement('div');
                 slot.className = 'zyad-card-slot';
-                if (card.type === 'shovel') {
-                    slot.classList.add('shovel');
-                    slot.textContent = '铲';
-                } else if (card.type === '枪') {
-                    // 枪兵卡牌：木+仓双图
-                    const mu = document.createElement('img');
-                    mu.className = 'zyad-gun-mu';
-                    mu.src = 'canvas/mu.png';
-                    const cang = document.createElement('img');
-                    cang.className = 'zyad-gun-cang';
-                    cang.src = 'canvas/cang.png';
-                    slot.appendChild(mu);
-                    slot.appendChild(cang);
-                    if (card.level > 1) {
-                        const lv = document.createElement('span');
-                        lv.className = 'zyad-card-level';
-                        lv.textContent = 'Lv' + card.level;
-                        slot.appendChild(lv);
+                if (card && !card.used) {
+                    if (card.type === 'shovel') {
+                        slot.classList.add('shovel');
+                        slot.textContent = '铲';
+                    } else if (card.type === '枪') {
+                        // 枪兵卡牌：木+仓双图
+                        const mu = document.createElement('img');
+                        mu.className = 'zyad-gun-mu';
+                        mu.src = 'canvas/mu.png';
+                        const cang = document.createElement('img');
+                        cang.className = 'zyad-gun-cang';
+                        cang.src = 'canvas/cang.png';
+                        slot.appendChild(mu);
+                        slot.appendChild(cang);
+                        if (card.level > 1) {
+                            const lv = document.createElement('span');
+                            lv.className = 'zyad-card-level';
+                            lv.textContent = 'Lv' + card.level;
+                            slot.appendChild(lv);
+                        }
+                    } else if (card.type === '骑') {
+                        // 骑（旗枪）：卡牌也用旗标替换文字
+                        const cv = document.createElement('canvas');
+                        cv.width = 160; cv.height = 160;
+                        cv.className = 'zyad-qi-card-canvas';
+                        slot.appendChild(cv);
+                        new QiFlag(cv);
+                        if (card.level > 1) {
+                            const lv = document.createElement('span');
+                            lv.className = 'zyad-card-level';
+                            lv.textContent = 'Lv' + card.level;
+                            slot.appendChild(lv);
+                        }
+                    } else {
+                        slot.textContent = card.type;
+                        if (card.level > 1) {
+                            const lv = document.createElement('span');
+                            lv.className = 'zyad-card-level';
+                            lv.textContent = 'Lv' + card.level;
+                            slot.appendChild(lv);
+                        }
                     }
-                } else if (card.type === '骑') {
-                    // 骑（旗枪）：卡牌也用旗标替换文字
-                    const cv = document.createElement('canvas');
-                    cv.width = 160; cv.height = 160;
-                    cv.className = 'zyad-qi-card-canvas';
-                    slot.appendChild(cv);
-                    new QiFlag(cv);
-                    if (card.level > 1) {
-                        const lv = document.createElement('span');
-                        lv.className = 'zyad-card-level';
-                        lv.textContent = 'Lv' + card.level;
-                        slot.appendChild(lv);
+                    if (game.selectedCard && game.selectedCard.idx === idx && game.selectedCard.bf === this) {
+                        slot.classList.add('selected');
                     }
-                } else {
-                    slot.textContent = card.type;
-                    if (card.level > 1) {
-                        const lv = document.createElement('span');
-                        lv.className = 'zyad-card-level';
-                        lv.textContent = 'Lv' + card.level;
-                        slot.appendChild(lv);
-                    }
-                }
-                if (card.used) slot.classList.add('used');
-                if (game.selectedCard && game.selectedCard.idx === idx && game.selectedCard.bf === this) {
-                    slot.classList.add('selected');
-                }
-                slot.addEventListener('click', () => {
-                    if (card.used) return;
-                    if (game.selectedCard && game.selectedCard.idx === idx) {
-                        // 再次点击同一张 → 取消选中
-                        game.selectedCard = null;
-                    } else if (game.selectedCard && game.selectedCard.bf === this) {
-                        const sel = game.selectedCard;
-                        const selCard = this.cards[sel.idx];
-                        // 同类同级且未达上限 → 在征兵栏内直接合并升级
-                        if (selCard && !selCard.used && selCard.type === card.type &&
-                            selCard.level === card.level && card.level < 5) {
-                            card.level += 1;               // 目标卡升级
-                            this.cards.splice(sel.idx, 1); // 消耗选中的卡
+                    slot.addEventListener('click', () => {
+                        if (card.used) return;
+                        if (game.selectedCard && game.selectedCard.idx === idx) {
+                            // 再次点击同一张 → 取消选中
                             game.selectedCard = null;
+                        } else if (game.selectedCard && game.selectedCard.bf === this) {
+                            const sel = game.selectedCard;
+                            const selCard = this.cards[sel.idx];
+                            // 同类同级且未达上限 → 在征兵栏内直接合并升级
+                            if (selCard && !selCard.used && selCard.type === card.type &&
+                                selCard.level === card.level && card.level < 5) {
+                                card.level += 1;               // 目标卡升级
+                                this.cards.splice(sel.idx, 1); // 消耗选中的卡
+                                game.selectedCard = null;
+                            } else {
+                                // 否则切换选中到这张卡
+                                game.selectedCard = { ...card, idx, bf: this };
+                                game.selectedDefender = null;
+                            }
                         } else {
-                            // 否则切换选中到这张卡
                             game.selectedCard = { ...card, idx, bf: this };
                             game.selectedDefender = null;
                         }
-                    } else {
-                        game.selectedCard = { ...card, idx, bf: this };
-                        game.selectedDefender = null;
-                    }
-                    this.renderCards();
-                });
+                        this.renderCards();
+                    });
+                }
+                // 已用或空：保持空白格（不显示任何内容）
                 slotsEl.appendChild(slot);
-            });
+            }
             // 卡牌渲染后高度变化，触发重新适配
             if (window.fitZyadGame) window.fitZyadGame();
         }
@@ -1230,8 +1234,8 @@
         game.leftBF.render(leftArena);
         game.rightBF.render(rightArena);
 
-        // 玩家初始征兵栏直接给满 5 张
-        game.leftBF.refillCards();
+        // 战局开始：玩家征兵栏为空，需点击「征兵」获取将士
+        game.leftBF.cards = [];
         game.leftBF.renderCards();
 
         // AI 初始卡牌
