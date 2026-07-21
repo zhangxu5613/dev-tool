@@ -1,0 +1,31 @@
+# 部署在 Python 后端服务器上
+# 假设代码放在 /opt/zyad
+#
+# 安装:
+#   sudo cp zyad-game.service /etc/systemd/system/
+#   sudo cp zyad-room.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now zyad-game
+#   sudo systemctl enable --now zyad-room
+#   sudo systemctl status zyad-game zyad-room
+#
+# 查看日志:
+#   sudo journalctl -u zyad-game -f
+#   sudo journalctl -u zyad-room -f
+
+[Unit]
+Description=Zyad Game HTTP Server (port 8090)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/zyad
+ExecStart=/usr/bin/python3 /opt/zyad/game_server.py
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

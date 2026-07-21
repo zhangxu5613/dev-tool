@@ -1,0 +1,16 @@
+[Unit]
+Description=Zyad WebSocket Room Server (port 8091)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/zyad
+ExecStart=/usr/bin/python3 /opt/zyad/room_server.py
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
