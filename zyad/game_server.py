@@ -429,9 +429,7 @@ class GameHTTPHandler(http.server.SimpleHTTPRequestHandler):
         })
 
     def _handle_save(self, body):
-        user_id = get_current_user(self)
-        if not user_id:
-            return send_err(self, "未登录", 401)
+        user_id = get_current_user(self) or _get_or_create_anon_user()
         player_data = body.get("playerData") or DEFAULT_PLAYER_DATA
         set_player_data(user_id, player_data)
         # 自动计算并更新段位分数
@@ -442,9 +440,7 @@ class GameHTTPHandler(http.server.SimpleHTTPRequestHandler):
         return send_ok(self, {"playerData": player_data})
 
     def _handle_score(self, body):
-        user_id = get_current_user(self)
-        if not user_id:
-            return send_err(self, "未登录", 401)
+        user_id = get_current_user(self) or _get_or_create_anon_user()
         rank_id = body.get("rankId") or "default"
         score = int(body.get("score") or 0)
         if score > 0:
@@ -487,9 +483,7 @@ class GameHTTPHandler(http.server.SimpleHTTPRequestHandler):
         })
 
     def _handle_sys_user_info(self, body):
-        user_id = get_current_user(self)
-        if not user_id:
-            return send_err(self, "未登录", 401)
+        user_id = get_current_user(self) or _get_or_create_anon_user()
         # body 是用户资料，直接回显
         return send_ok(self, {"userId": user_id, "info": body})
 
@@ -497,9 +491,7 @@ class GameHTTPHandler(http.server.SimpleHTTPRequestHandler):
         """云存档上传 (sys/user/data)
         body 是 2字符短名字段, 转回内部名后存
         """
-        user_id = get_current_user(self)
-        if not user_id:
-            return send_err(self, "未登录", 401)
+        user_id = get_current_user(self) or _get_or_create_anon_user()
         # body 是已映射的短字段, 反推回内部名
         internal = from_server_format(body)
         if internal is None:
@@ -661,6 +653,30 @@ def _get_user_by_id(user_id):
     row = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
     conn.close()
     return row
+
+
+def _get_or_create_anon_user():
+    """未登录时自动给一个匿名用户（id 固定，存档不丢）。
+    
+    使用场景：游戏自动保存时 h5api.save() 直接调 /api/save，但用户还没注册/登录。
+    与其返回 401 让客户端 localStorage 兜底，不如直接存到匿名槽位，
+    用户后续注册时可以把匿名存档迁移过去。
+    """
+    ANON_USERNAME = "__anonymous__"
+    user = get_user_by_username(ANON_USERNAME)
+    if user:
+        return user["id"]
+    conn = db()
+    cur = conn.execute(
+        "INSERT INTO users(username, password_hash, created_at) VALUES(?, ?, ?)",
+        (ANON_USERNAME, hash_pwd(uuid.uuid4().hex), now_ms())
+    )
+    user_id = cur.lastrowid
+    conn.execute("INSERT INTO saves(user_id, player_data, updated_at) VALUES(?, ?, ?)",
+                 (user_id, DEFAULT_PLAYER_DATA, now_ms()))
+    conn.commit()
+    conn.close()
+    return user_id
 
 
 # ===== 启动 =====
