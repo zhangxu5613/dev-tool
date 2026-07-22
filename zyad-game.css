@@ -99,7 +99,18 @@
 	    width: 100%;
 	}
 	.zyad-board-right { background: #8a7050; }
-	
+
+	/* 战场 canvas（替代原 DOM 网格 + 敌人/特效/射程层） */
+	.zyad-canvas {
+	    display: block;
+	    width: 100%;
+	    height: auto;
+	    border-radius: 4px;
+	    background: #1a1a1a;
+	    touch-action: none;       /* 允许拖拽士兵而不触发页面滚动 */
+	    cursor: pointer;
+	}
+
 	/* 网格（aspect-ratio 保证方格始终正方形） */
 	.zyad-grid {
 	    display: grid;
@@ -186,12 +197,14 @@
     position: absolute;
     left: 50%; top: 50%;
     width: 100%; height: 100%;
-    transform: translate(-50%, -50%) scale(2);
+    transform: translate(-50%, -50%);
     transform-origin: center center;
     pointer-events: none;
 }
 .zyad-cell .zyad-defender .zyad-qi-canvas {
     width: 100%; height: 100%; display: block;
+    transform: scale(2);
+    transform-origin: center center;
 }
 .zyad-card-slot .zyad-qi-card-canvas {
     width: var(--zyad-cell, 48.75px); height: var(--zyad-cell, 48.75px);
@@ -239,6 +252,7 @@
     position: absolute; top: 1px; right: 2px;
     font-size: 8px; color: #b06820; font-family: sans-serif;
     font-weight: 700;
+    z-index: 5;
 }
 .zyad-cell .zyad-defender-level.lv3 { color: #7c3aed; }
 .zyad-cell .zyad-defender-level.lv4 { color: #dc2626; }
@@ -367,6 +381,7 @@
 .zyad-card-slot:active { cursor: grabbing; transform: scale(0.95); }
 .zyad-card-slot.dragging { opacity: 0.4; }
 .zyad-card-slot.shovel { background: #d4a857; color: #2a1a05; border-style: solid; }
+.zyad-card-slot.general { background: linear-gradient(135deg,#f5d77a,#d4a857); color: #3a2606; border-color: #f0d088; font-size: 22px; font-weight: 800; box-shadow: 0 0 6px rgba(240,200,90,0.5); }
 .zyad-card-slot.used { opacity: 0.3; cursor: default; }
 .zyad-card-slot.selected {
     border-color: #c2410c;

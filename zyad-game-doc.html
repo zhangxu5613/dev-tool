@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>赵云与阿斗 · 游戏设定文档</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#161d2e; --panel2:#1d2740; --ink:#e8edf7; --muted:#9aa7c0;
+    --line:#2a3450; --gold:#f5d77a; --red:#ef5a5a; --green:#46c98a; --blue:#5aa9ef;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,"PingFang SC","Microsoft Yahei",sans-serif;line-height:1.65}
+  .wrap{max-width:940px;margin:0 auto;padding:32px 22px 80px}
+  h1{font-size:30px;margin:0 0 4px;letter-spacing:2px}
+  h2{font-size:21px;margin:42px 0 14px;padding-left:12px;border-left:4px solid var(--gold)}
+  h3{font-size:16px;margin:24px 0 10px;color:var(--gold)}
+  .sub{color:var(--muted);margin:0 0 8px}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px;background:var(--panel);border-radius:10px;overflow:hidden}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line)}
+  th{background:var(--panel2);color:var(--gold);font-weight:600}
+  tr:last-child td{border-bottom:none}
+  td b{color:var(--gold)}
+  .tag{display:inline-block;padding:1px 8px;border-radius:20px;font-size:12px;font-weight:600}
+  .t-q{background:#15324a;color:#7cc4ff}
+  .t-d{background:#3a1f1f;color:#ff9a9a}
+  .t-qi{background:#1f3a2a;color:#8fe6b0}
+  .t-g{background:#33291a;color:#f0c878}
+  .grid-map{display:grid;grid-template-columns:repeat(8,38px);gap:4px;margin:14px 0;justify-content:center}
+  .cell{height:38px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#0f1420}
+  .cA{background:#caa45a}
+  .cB{background:#39435f}
+  .cC{background:#2f7d52;color:#fff}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;color:var(--muted);font-size:13px;margin-top:6px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .dot{width:14px;height:14px;border-radius:4px;display:inline-block}
+  .note{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--blue);padding:10px 14px;border-radius:8px;font-size:13px;color:var(--muted);margin:12px 0}
+  .scale{font-size:13px;color:var(--muted)}
+  code{background:#222c44;padding:1px 6px;border-radius:5px;color:#ffd;font-size:12.5px}
+  .pill{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 12px;margin:4px 6px 4px 0;font-size:13px}
+  .footer{margin-top:50px;color:var(--muted);font-size:12px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>赵云与阿斗 · 游戏设定文档</h1>
+  <p class="sub">上下两个 8×5 战场，玩家 vs AI，比谁守阿斗更久。本文整理自 <code>zyad.html</code> / <code>zyad-game.js</code> 源码（关卡：虎牢关，共 15 波）。</p>
+
+  <!-- 布局 -->
+  <h2>一、布局</h2>
+  <p>整局为<strong>左右两个半场</strong>：左=玩家，右=AI（对称）。每个半场各一张 8 列 × 5 行 的棋盘，单格 <b>48px</b>，半场尺寸 <b>384 × 240 px</b>。</p>
+  <h3>地块类型</h3>
+  <table>
+    <tr><th>类型</th><th>代号</th><th>说明</th></tr>
+    <tr><td>道路</td><td><b>A</b></td><td>敌人行进路径，不可建造</td></tr>
+    <tr><td>空地</td><td><b>C</b></td><td>可建造 / 部署防守者</td></tr>
+    <tr><td>荒地</td><td><b>B</b></td><td>锁定，不可建造、不可通行</td></tr>
+    <tr><td>敌营</td><td>ENTRY</td><td>路径起点，敌人出生点</td></tr>
+    <tr><td>阿斗</td><td>ODOU</td><td>路径终点，敌人抵达则扣斗</td></tr>
+  </table>
+  <h3>己方地图（每半场，A/B/C 对应上表）</h3>
+  <div class="grid-map">
+    <div class="cell cA">A</div><div class="cell cB">B</div><div class="cell cA">A</div><div class="cell cA">A</div><div class="cell cA">A</div><div class="cell cA">A</div><div class="cell cB">B</div><div class="cell cA">A</div>
+    <div class="cell cA">A</div><div class="cell cB">B</div><div class="cell cA">A</div><div class="cell cB">B</div><div class="cell cB">B</div><div class="cell cA">A</div><div class="cell cB">B</div><div class="cell cA">A</div>
+    <div class="cell cA">A</div><div class="cell cB">B</div><div class="cell cA">A</div><div class="cell cC">C</div><div class="cell cC">C</div><div class="cell cA">A</div><div class="cell cB">B</div><div class="cell cA">A</div>
+    <div class="cell cA">A</div><div class="cell cA">A</div><div class="cell cA">A</div><div class="cell cC">C</div><div class="cell cC">C</div><div class="cell cA">A</div><div class="cell cA">A</div><div class="cell cA">A</div>
+    <div class="cell cB">B</div><div class="cell cB">B</div><div class="cell cB">B</div><div class="cell cC">C</div><div class="cell cC">C</div><div class="cell cB">B</div><div class="cell cB">B</div><div class="cell cB">B</div>
+  </div>
+  <div class="legend">
+    <span><i class="dot" style="background:#caa45a"></i>道路 A（敌径）</span>
+    <span><i class="dot" style="background:#39435f"></i>荒地 B（锁定）</span>
+    <span><i class="dot" style="background:#2f7d52"></i>空地 C（可建造）</span>
+  </div>
+  <p class="note"><b>可建造格（C）仅有 6 格</b>：位于中间列 3–4、行 2–4 的竖向窄带。防守者只能部署在这 6 格，需覆盖蜿蜒敌径。AI 半场地图为玩家地图的<strong>中心对称</strong>（行反转 + 列反转）。</p>
+  <p class="scale">玩家路径：敌营 (0,0) → 沿 A 蜿蜒 20 步 → 抵达阿斗 (0,7)。</p>
+
+  <!-- 经济与费用 -->
+  <h2>二、经济与征兵费用</h2>
+  <table>
+    <tr><th>项目</th><th>数值</th></tr>
+    <tr><td>起始馒头</td><td><b>20</b></td></tr>
+    <tr><td>阿斗血量（斗）</td><td><b>3</b>（被敌人抵达即按敌种伤害扣减）</td></tr>
+    <tr><td>征兵费用</td><td>首次 <b>10</b>，之后每征兵一次 <b>+2</b>（即 10 / 12 / 14 / 16 …）</td></tr>
+    <tr><td>每次征兵产出</td><td>刷新 <b>5 张</b>征兵卡（刀 / 弓 / 枪 / 骑 / 武将碎片 / 铲子）</td></tr>
+    <tr><td>击杀奖励</td><td>每个敌人 +<b>1</b> 馒头（代码固定；配置里兵/卒/将的 reward 1/2/5 字段当前未生效）</td></tr>
+    <tr><td>升级 / 合成</td><td>不耗资源：拖拽<strong>同类同级</strong>士兵叠放即合成升 1 级（最高 Lv5）</td></tr>
+  </table>
+
+  <!-- 概率 -->
+  <h2>三、征兵概率</h2>
+  <p>单次「征兵」刷新 5 张卡时，<strong>每张卡</strong>按以下权重独立抽取：</p>
+  <table>
+    <tr><th>卡类型</th><th>概率</th><th>说明</th></tr>
+    <tr><td>刀</td><td><b>19.1%</b></td><td>近战单体</td></tr>
+    <tr><td>弓</td><td><b>17.3%</b></td><td>远程单体</td></tr>
+    <tr><td>枪</td><td><b>16.4%</b></td><td>近战穿刺（直线多目标）</td></tr>
+    <tr><td>骑</td><td><b>15.5%</b></td><td>近战范围</td></tr>
+    <tr><td>武将碎片</td><td><b>20%</b></td><td>从武将碎片池随机出一个字（见第五节）</td></tr>
+    <tr><td>铲子</td><td><b>11.7%</b></td><td>占位格（无战斗力）</td></tr>
+  </table>
+  <div class="note">
+    • 武将碎片池集齐（该局所有字都已征召过）后，原 20% 份额自动转为「铲子」。<br>
+    • AI 不抽武将碎片池，命中即归铲子，避免抢收集进度。
+  </div>
+
+  <!-- 基础士兵 -->
+  <h2>四、基础士兵攻击信息</h2>
+  <table>
+    <tr><th>兵种</th><th>范围 (格)</th><th>基础伤害</th><th>攻击间隔</th><th>攻速</th><th>血量</th><th>攻击类型</th></tr>
+    <tr><td><span class="tag t-q">枪</span></td><td>2.0</td><td>2</td><td>0.80s</td><td>1.25/s</td><td>5</td><td>穿刺 pierce（直线多目标）</td></tr>
+    <tr><td><span class="tag t-d">刀</span></td><td>1.5</td><td>3</td><td>0.80s</td><td>1.25/s</td><td>3</td><td>单体 single</td></tr>
+    <tr><td><span class="tag t-qi">骑</span></td><td>1.5</td><td>2</td><td>0.80s</td><td>1.25/s</td><td>4</td><td>范围 aoe（周围一圈）</td></tr>
+    <tr><td><span class="tag t-g">弓</span></td><td>3.0</td><td>2</td><td>0.80s</td><td>1.25/s</td><td>3</td><td>单体 single（远程）</td></tr>
+  </table>
+  <h3>等级成长</h3>
+  <p>等级乘子 <code>mult = 1.5^(level-1)</code>，作用于：<b>伤害 ×mult</b>、<b>血量 ×mult</b>、<b>攻击间隔 ÷mult（更快）</b>。最高 Lv5（mult=5.0625）。</p>
+  <table>
+    <tr><th>兵种</th><th>Lv1</th><th>Lv3（武将基准）</th><th>Lv5（满级）</th></tr>
+    <tr><td><span class="tag t-q">枪</span></td><td>伤害2 / 血5</td><td>伤害4.5 / 血11</td><td>伤害10.1 / 血25</td></tr>
+    <tr><td><span class="tag t-d">刀</span></td><td>伤害3 / 血3</td><td>伤害6.75 / 血7</td><td>伤害15.2 / 血15</td></tr>
+    <tr><td><span class="tag t-qi">骑</span></td><td>伤害2 / 血4</td><td>伤害4.5 / 血9</td><td>伤害10.1 / 血20</td></tr>
+    <tr><td><span class="tag t-g">弓</span></td><td>伤害2 / 血3</td><td>伤害4.5 / 血7</td><td>伤害10.1 / 血15</td></tr>
+  </table>
+
+  <!-- 武将与合成 -->
+  <h2>五、武将与合成</h2>
+  <h3>武将碎片池</h3>
+  <p>池中共 <b>22</b> 个字，每个字出现次数 = 该字最多可被征召出的数量（征召后不再重复）。</p>
+  <div>
+    <span class="pill">刘 ×1</span><span class="pill">赵 ×2</span><span class="pill">云 ×1</span>
+    <span class="pill">关 ×1</span><span class="pill">羽 ×1</span><span class="pill">平 ×1</span><span class="pill">兴 ×1</span>
+    <span class="pill">马 ×2</span><span class="pill">超 ×1</span>
+    <span class="pill">张 ×2</span><span class="pill">飞 ×1</span><span class="pill">苞 ×1</span><span class="pill">翼 ×1</span>
+    <span class="pill">黄 ×2</span><span class="pill">忠 ×1</span><span class="pill">盖 ×1</span><span class="pill">祖 ×1</span>
+    <span class="pill">备 ×1</span>
+  </div>
+  <div class="note">
+    因每个武将需两个字，池上限带来天然约束：<br>
+    • <b>赵云</b>（赵+云）：云仅 1 → 最多 1 个；<b>关羽</b>（关+羽）、<b>张飞</b>（张+飞）、<b>马超</b>（马+超）、<b>黄忠</b>（黄+忠）、<b>刘备</b>（刘+备）各最多 1 个。<br>
+    • <b>关</b> 只有 1 个，关羽 / 关兴 / 关平 三者互斥（只能成其一）。<br>
+    • <b>张</b> 有 2 个，故张飞 + 张苞（或张飞 + 张翼）可共存（受飞/苞/翼各 1 限制）。<br>
+    • <b>黄</b> 有 2 个，黄忠 / 黄盖 / 黄祖 中可选其二。
+  </div>
+
+  <h3>合成规则（仅左右相邻）</h3>
+  <p>碎片需先拖到战场（单字无攻击力），再合成武将：</p>
+  <ul>
+    <li><b>左右相邻</b>：左片 = a、右片 = b（严格顺序）才可合成，武将落在<strong>左格</strong>。</li>
+    <li><b>上下相邻 / 右左相邻</b>：均<strong>不</strong>合成。</li>
+    <li><b>同格叠放</b>：把一张碎片拖到另一张碎片上（顺序无关）也可触发合成，作为便捷回退。</li>
+  </ul>
+
+  <h3>十二名将一览</h3>
+  <table>
+    <tr><th>武将</th><th>武器</th><th>技能</th><th>冷却(s)</th><th>技能效果</th></tr>
+    <tr><td><b>赵云</b></td><td><span class="tag t-q">枪</span></td><td>幻象突进</td><td>9</td><td>召唤幻象冲入敌群，来回突进 7 次乱刺</td></tr>
+    <tr><td><b>关羽</b></td><td><span class="tag t-d">刀</span></td><td>跳斩溅射</td><td>11</td><td>接下来 4 次攻击为跳斩，每次对主目标周围 1 格造成 50% 溅射</td></tr>
+    <tr><td><b>关兴</b></td><td><span class="tag t-d">刀</span></td><td>普攻眩晕</td><td>—</td><td>每次普攻 28% 概率眩晕敌人 1.2s</td></tr>
+    <tr><td><b>黄盖</b></td><td><span class="tag t-d">刀</span></td><td>无</td><td>—</td><td>无技能，仅基础刀兵属性</td></tr>
+    <tr><td><b>张飞</b></td><td><span class="tag t-q">枪</span></td><td>大喝眩晕</td><td>10</td><td>大喝，砸晕半径 2.4 格内一圈敌人 2s</td></tr>
+    <tr><td><b>黄忠</b></td><td><span class="tag t-g">弓</span></td><td>火箭轰炸</td><td>9</td><td>射出 8 发火箭，落雷式轰炸敌人</td></tr>
+    <tr><td><b>张苞</b></td><td><span class="tag t-q">枪</span></td><td>普攻眩晕</td><td>—</td><td>每次普攻 28% 概率眩晕 1.2s</td></tr>
+    <tr><td><b>刘备</b></td><td><span class="tag t-d">刀</span></td><td>圣剑击倒</td><td>12</td><td>释放圣剑，范围 2.4 格伤害并击倒（眩晕 1s）</td></tr>
+    <tr><td><b>马超</b></td><td><span class="tag t-q">枪</span></td><td>普攻眩晕</td><td>—</td><td>每次普攻 28% 概率眩晕 1.2s</td></tr>
+    <tr><td><b>关平</b></td><td><span class="tag t-d">刀</span></td><td>大喝眩晕</td><td>10</td><td>大喝，砸晕半径 2.4 格内一圈敌人 2s</td></tr>
+    <tr><td><b>张翼</b></td><td><span class="tag t-d">刀</span></td><td>跳斩溅射</td><td>11</td><td>同关羽：4 次跳斩，每次 50% 溅射</td></tr>
+    <tr><td><b>黄祖</b></td><td><span class="tag t-g">弓</span></td><td>箭雨</td><td>8</td><td>射出 8 发箭雨，落雷式轰炸敌人</td></tr>
+  </table>
+  <p class="scale">武将合成时固定为 <b>Lv3</b>（mult=2.25），其属性 = 对应武器基础值 ×2.25（见第四节 Lv3 列）。武将可继续与普通同类士兵合成升到 Lv4/Lv5。</p>
+
+  <!-- 敌人 -->
+  <h2>六、敌人与波次</h2>
+  <table>
+    <tr><th>敌种</th><th>速度(格/s)</th><th>抵达阿斗伤害</th><th>击杀奖励</th><th>血量公式</th></tr>
+    <tr><td>兵</td><td>0.8</td><td>1</td><td>+1 馒头</td><td rowspan="3">20 + (波次−1) × 20</td></tr>
+    <tr><td>卒</td><td>0.8</td><td>1</td><td>+1 馒头</td></tr>
+    <tr><td>将</td><td>0.8</td><td>2</td><td>+1 馒头</td></tr>
+  </table>
+  <p class="scale">血量示例：第 1 波 20 HP，第 7 波 140 HP，第 15 波 300 HP。</p>
+  <h3>波次规则</h3>
+  <ul>
+    <li>总波数 <b>15</b>；每波敌数 = <code>10 + (波次−1)</code>（第 1 波 10 个，第 15 波 24 个）。</li>
+    <li>刷怪间隔 <b>1.25s</b>，波间冷却 <b>5s</b>。</li>
+    <li>敌种分布：波 1–2 全为「兵」；波 3–6 兵 70% / 卒 30%；波 7+ 兵 40% / 卒 45% / 将 15%。</li>
+    <li>胜负：守住全部 15 波即胜利；己方阿斗血量归零即失败。AI 半场同样有阿斗（斗 3），独立结算。</li>
+  </ul>
+
+  <div class="footer">本文档由源码自动整理 · 数据以 <code>zyad.html</code> / <code>zyad-game.js</code> 实际代码为准</div>
+</div>
+</body>
+</html>

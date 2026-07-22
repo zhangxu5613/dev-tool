@@ -1,5 +1,5 @@
 # 部署在 Python 后端服务器上
-# 假设代码放在 /opt/zyad
+# 假设代码放在 /var/www/dev-tool/zyad
 #
 # 安装:
 #   sudo cp zyad-game.service /etc/systemd/system/
@@ -12,6 +12,9 @@
 # 查看日志:
 #   sudo journalctl -u zyad-game -f
 #   sudo journalctl -u zyad-room -f
+#
+# 如果要用非 root 用户跑, 取消下面 User= 行的注释并改成系统已有的用户
+# (CentOS/RHEL 用 apache 或 nginx, Debian/Ubuntu 用 www-data)
 
 [Unit]
 Description=Zyad Game HTTP Server (port 8090)
@@ -19,9 +22,9 @@ After=network.target
 
 [Service]
 Type=simple
-User=www-data
-WorkingDirectory=/opt/zyad
-ExecStart=/usr/bin/python3 /opt/zyad/game_server.py
+# User=www-data
+WorkingDirectory=/var/www/dev-tool/zyad
+ExecStart=/usr/bin/python3 /var/www/dev-tool/zyad/game_server.py
 Restart=always
 RestartSec=3
 StandardOutput=journal

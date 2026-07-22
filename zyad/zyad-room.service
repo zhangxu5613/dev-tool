@@ -4,9 +4,9 @@ After=network.target
 
 [Service]
 Type=simple
-User=www-data
-WorkingDirectory=/opt/zyad
-ExecStart=/usr/bin/python3 /opt/zyad/room_server.py
+# User=www-data
+WorkingDirectory=/var/www/dev-tool/zyad
+ExecStart=/usr/bin/python3 /var/www/dev-tool/zyad/room_server.py
 Restart=always
 RestartSec=3
 StandardOutput=journal

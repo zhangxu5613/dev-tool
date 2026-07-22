@@ -180,7 +180,7 @@
       '<div class="room-head"><strong>开始游戏</strong><button id="room-close">×</button></div>',
       '<div class="room-body">',
       '<label class="room-field"><span>房间号</span><input id="room-id" maxlength="16" value="' + escapeHtml(queryRoom || currentRoom) + '"></label>',
-      '<label class="room-field"><span>服务器</span><input id="room-host" value="' + escapeHtml(location.host) + '"></label>',
+      '<label class="room-field"><span>服务器</span><input id="room-host" value="' + escapeHtml(currentHost || location.host) + '"></label>',
       '<div class="room-actions">',
       '<button id="room-random">创建房间</button>',
       '<button id="room-match">开始匹配</button>',

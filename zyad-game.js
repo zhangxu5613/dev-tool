@@ -9,6 +9,10 @@
     // ─────────── 常量 ───────────
     const COLS = 8;
     const ROWS = 5;
+    const CELL = 48;                 // 战场单格逻辑像素
+    const BOARD_W = COLS * CELL;     // 战场画布宽
+    const BOARD_H = ROWS * CELL;     // 战场画布高
+    const FLAG_SIZE = CELL * 5;      // 骑（旗枪）挥砍绘制尺寸
 
     const TILE = { LOCKED: 0, CLEARED: 1, PATH: 2, ODOU: 3, ENTRY: 4 };
 
@@ -26,6 +30,52 @@
     };
 
     const CARD_TYPES = Object.keys(DEFENDERS);
+
+    // 武将碎片池：每个字出现的次数 = 该武将最多可被征召出的数量（超出后不再出现）
+    const GENERAL_POOL = ['刘','赵','赵','云','关','羽','平','兴','马','马','超','张','张','飞','苞','翼','黄','黄','忠','盖','祖','备'];
+    const GENERAL_CHARS = Array.from(new Set(GENERAL_POOL)); // 去重（保序）
+    const GENERAL_MAX = {};
+    GENERAL_POOL.forEach(ch => { GENERAL_MAX[ch] = (GENERAL_MAX[ch] || 0) + 1; });
+
+    // 武将合成组合：左右相邻（左=a、右=b）才合成；weapon 决定攻击方式，skill 决定武将技能
+    const GENERAL_COMBOS = [
+        { a: '赵', b: '云', name: '赵云', weapon: '枪', skill: 'illusion' },     // 幻象突进
+        { a: '关', b: '羽', name: '关羽', weapon: '刀', skill: 'leap' },         // 跳斩溅射
+        { a: '张', b: '飞', name: '张飞', weapon: '枪', skill: 'shout' },        // 大喝眩晕
+        { a: '马', b: '超', name: '马超', weapon: '枪', skill: 'stunHit' },      // 普攻眩晕
+        { a: '黄', b: '忠', name: '黄忠', weapon: '弓', skill: 'fireBarrage' },  // 火箭轰炸
+        { a: '刘', b: '备', name: '刘备', weapon: '刀', skill: 'holySword' },    // 圣剑击倒
+        { a: '关', b: '兴', name: '关兴', weapon: '刀', skill: 'stunHit' },      // 普攻眩晕
+        { a: '黄', b: '盖', name: '黄盖', weapon: '刀', skill: 'none' },         // 无技能
+        { a: '张', b: '苞', name: '张苞', weapon: '枪', skill: 'stunHit' },      // 普攻眩晕
+        { a: '关', b: '平', name: '关平', weapon: '刀', skill: 'shout' },        // 大喝眩晕
+        { a: '张', b: '翼', name: '张翼', weapon: '刀', skill: 'leap' },         // 跳斩溅射
+        { a: '黄', b: '祖', name: '黄祖', weapon: '弓', skill: 'arrowRain' }     // 箭雨
+    ];
+    // 顺序无关（用于"同格叠放合成"：一张碎片落到另一张碎片上）
+    function comboFor(ch1, ch2) {
+        for (const c of GENERAL_COMBOS) {
+            if ((c.a === ch1 && c.b === ch2) || (c.a === ch2 && c.b === ch1)) return c;
+        }
+        return null;
+    }
+    // 严格左=a、右=b（用于"左右相邻合成"：仅水平相邻、且顺序为左→右才合成）
+    function comboForExact(ch1, ch2) {
+        for (const c of GENERAL_COMBOS) {
+            if (c.a === ch1 && c.b === ch2) return c;
+        }
+        return null;
+    }
+
+    // 武将技能参数
+    const SKILL_NAME = { illusion: '幻象突进', leap: '跳斩溅射', shout: '大喝眩晕', fireBarrage: '火箭轰炸', holySword: '圣剑击倒', arrowRain: '箭雨', stunHit: '普攻眩晕', none: '无' };
+    const SKILL_CD = { illusion: 9, leap: 11, shout: 10, fireBarrage: 9, holySword: 12, arrowRain: 8, stunHit: 0, none: 0 };
+    const STUN_HIT_CHANCE = 0.28;   // 关兴/张苞/马超：普攻概率眩晕
+    const STUN_HIT_DUR = 1.2;
+    const SHOUT_RADIUS = 2.4, SHOUT_DUR = 2.0;   // 张飞/关平：大喝一圈眩晕
+    const LEAP_CHARGES = 4, LEAP_SPLASH = 0.5;   // 关羽/张翼：接下来数次跳斩，50% 溅射
+    const HOLY_RADIUS = 2.4, HOLY_DUR = 1.0;     // 刘备：圣剑范围伤害+击倒
+    const BARRAGE_COUNT = 8;                     // 黄忠/黄祖：箭/火雨数量
 
     // 己方地图（5行×8列）：A=道路 B=荒地 C=空地
     const MY_MAP = [
@@ -46,6 +96,15 @@
     // AI 路径（中心对称）：敌营(4,7) → 阿斗(4,0)
     const RIGHT_PATH = LEFT_PATH.map(([r, c]) => [4 - r, 7 - c]);
 
+    // ─────────── 贴图缓存（canvas 绘制用）───────────
+    const _img = {};
+    const _imgKeys = ['daolu', 'huangdi', 'kongdi', 'diying', 'adou', 'mu', 'cang', 'dao', 'daobing', 'gong', 'gong2', 'zu'];
+    _imgKeys.forEach((k) => {
+        const im = new Image();
+        im.onload = () => { _img[k] = im; };
+        im.src = 'canvas/' + k + '.png';
+    });
+
     // ─────────── 战场类 ───────────
     class Battlefield {
         constructor(side, colOffset, path, mapData) {
@@ -58,6 +117,7 @@
             this.enemies = [];
             this.projectiles = [];
             this.effects = [];
+            this.skillFx = [];        // 武将技能特效（幻象/大喝/圣剑/箭雨等）
             this.cards = [];
             this.odouHP = 3;
             this.grain = 20;
@@ -67,6 +127,10 @@
             this.effectLayer = null;
             this.odouEl = null;
             this.cardSlotsEl = null;
+            this.canvas = null;
+            this.ctx = null;
+            this.rangeDef = null;    // 选中士兵（画射程圈）
+            this.infoDef = null;     // 选中士兵（画信息框）
             this.isAI = side === 'right';
         }
 
@@ -92,63 +156,25 @@
             container.innerHTML = '';
             const board = document.createElement('div');
             board.className = `zyad-board zyad-board-${this.side}`;
-            // 网格
-            const grid = document.createElement('div');
-            grid.className = 'zyad-grid';
-            grid.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`;
-            for (let r = 0; r < ROWS; r++) {
-                for (let c = 0; c < COLS; c++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'zyad-cell';
-                    cell.dataset.r = r;
-                    cell.dataset.c = c;
-                    cell.dataset.side = this.side;
-                    const st = this.grid[r][c];
-                    const TILE_IMG = {
-                        [TILE.PATH]: 'canvas/daolu.png',
-                        [TILE.LOCKED]: 'canvas/huangdi.png',
-                        [TILE.CLEARED]: 'canvas/kongdi.png',
-                        [TILE.ENTRY]: 'canvas/diying.png',
-                        [TILE.ODOU]: 'canvas/adou.png'
-                    };
-                    cell.style.backgroundImage = `url(${TILE_IMG[st]})`;
-                    cell.style.backgroundSize = 'cover';
-                    cell.style.backgroundPosition = 'center';
-                    if (st === TILE.ENTRY) cell.classList.add('entry');
-                    else if (st === TILE.ODOU) cell.classList.add('odou');
-                    else if (st === TILE.PATH) cell.classList.add('path');
-                    else if (st === TILE.LOCKED) cell.classList.add('locked');
-                    else if (st === TILE.CLEARED) cell.classList.add('cleared');
-                    grid.appendChild(cell);
-                }
-            }
-            board.appendChild(grid);
-            // 敌人层
-            const el = document.createElement('div');
-            el.className = 'zyad-enemy-layer';
-            board.appendChild(el);
-            this.enemyLayer = el;
-            // 特效层
-            const fl = document.createElement('div');
-            fl.className = 'zyad-effect-layer';
-            board.appendChild(fl);
-            this.effectLayer = fl;
-            // 射程圈层
-            const rl = document.createElement('div');
-            rl.className = 'zyad-range-layer';
-            board.appendChild(rl);
-            this.rangeLayer = rl;
-            // 选中信息提示
-            const tip = document.createElement('div');
-            tip.className = 'zyad-info-tip hidden';
-            board.appendChild(tip);
-            this.infoTip = tip;
+            // 纯 canvas 战场
+            const canvas = document.createElement('canvas');
+            canvas.className = 'zyad-canvas';
+            canvas.width = BOARD_W;
+            canvas.height = BOARD_H;
+            canvas.dataset.side = this.side;
+            board.appendChild(canvas);
+            this.canvas = canvas;
+            this.ctx = canvas.getContext('2d');
+            this.gridEl = null;        // 不再使用 DOM 网格
+            this.enemyLayer = null;
+            this.effectLayer = null;
+            this.rangeLayer = null;
+            this.infoTip = null;
             this.boardEl = board;
             container.appendChild(board);
-            this.gridEl = grid;
 
+            // 右侧（AI）状态条
             if (this.isAI) {
-                // AI 状态显示
                 const aiBar = document.createElement('div');
                 aiBar.className = 'zyad-ai-bar';
                 aiBar.innerHTML = '<span class="zyad-ai-label">🤖 对手</span> 馒头 <b class="zyad-ai-grain">20</b> | 斗 <b class="zyad-ai-odou">3</b>♥';
@@ -159,13 +185,25 @@
 
         refillCards() {
             while (this.cards.length < 5) {
-                this.cards.push({ type: this.rollCard(), level: 1, used: false });
+                const rc = this.rollCard();
+                this.cards.push({ type: rc.type, level: 1, used: false, char: rc.char || null });
             }
         }
 
         rollCard() {
-            if (Math.random() < 0.05) return 'shovel';
-            return CARD_TYPES[Math.floor(Math.random() * CARD_TYPES.length)];
+            // 征兵概率（%）：刀 19.1 / 弓 17.3 / 枪 16.4 / 骑 15.5 / 武将碎片池 20 / 铲子 11.7
+            const r = Math.random() * 100;
+            if (r < 19.1) return { type: '刀' };
+            if (r < 36.4) return { type: '弓' };   // 19.1 + 17.3
+            if (r < 52.8) return { type: '枪' };   // 36.4 + 16.4
+            if (r < 68.3) return { type: '骑' };   // 52.8 + 15.5
+            if (r < 88.3) {                          // 20% 武将碎片池
+                if (this.isAI) return { type: 'shovel' };  // AI 不抽武将池
+                const ch = drawGeneral();
+                if (ch) return { type: 'general', char: ch };
+                return { type: 'shovel' };          // 池已空 → 归铲子
+            }
+            return { type: 'shovel' };              // 剩余 11.7
         }
 
         renderCards() {
@@ -181,6 +219,9 @@
                     if (card.type === 'shovel') {
                         slot.classList.add('shovel');
                         slot.textContent = '铲';
+                    } else if (card.type === 'general') {
+                        slot.classList.add('general');
+                        slot.textContent = card.char;   // 武将碎片：显示单字
                     } else if (card.type === '枪') {
                         // 枪兵卡牌：木+仓双图
                         const mu = document.createElement('img');
@@ -191,39 +232,52 @@
                         cang.src = 'canvas/cang.png';
                         slot.appendChild(mu);
                         slot.appendChild(cang);
-                        if (card.level > 1) {
-                            const lv = document.createElement('span');
-                            lv.className = 'zyad-card-level';
-                            lv.textContent = 'Lv' + card.level;
-                            slot.appendChild(lv);
-                        }
+                        const lv = document.createElement('span');
+                        lv.className = 'zyad-card-level';
+                        lv.textContent = 'Lv' + card.level;
+                        slot.appendChild(lv);
                     } else if (card.type === '骑') {
                         // 骑（旗枪）：卡牌也用旗标替换文字
                         const cv = document.createElement('canvas');
                         cv.width = 160; cv.height = 160;
                         cv.className = 'zyad-qi-card-canvas';
                         slot.appendChild(cv);
-                        new QiFlag(cv);
-                        if (card.level > 1) {
-                            const lv = document.createElement('span');
-                            lv.className = 'zyad-card-level';
-                            lv.textContent = 'Lv' + card.level;
-                            slot.appendChild(lv);
-                        }
+                        new QiFlag(160).attach(cv);
+                        const lv = document.createElement('span');
+                        lv.className = 'zyad-card-level';
+                        lv.textContent = 'Lv' + card.level;
+                        slot.appendChild(lv);
                     } else {
                         slot.textContent = card.type;
-                        if (card.level > 1) {
-                            const lv = document.createElement('span');
-                            lv.className = 'zyad-card-level';
-                            lv.textContent = 'Lv' + card.level;
-                            slot.appendChild(lv);
-                        }
+                        const lv = document.createElement('span');
+                        lv.className = 'zyad-card-level';
+                        lv.textContent = 'Lv' + card.level;
+                        slot.appendChild(lv);
                     }
                     if (game.selectedCard && game.selectedCard.idx === idx && game.selectedCard.bf === this) {
                         slot.classList.add('selected');
                     }
+                    // ── 卡牌拖动上场：在卡牌上按下并拖到战场格子松手即部署 ──
+                    slot.addEventListener('pointerdown', (e) => {
+                        if (card.used) return;
+                        e.preventDefault();
+                        game.selectedDefender = null;
+                        const t = card.type, lv = card.level;
+                        let ghost = null;
+                        if (t === '骑') ghost = { type: '骑', level: lv, qiFlag: new QiFlag(UNIT_QI) };
+                        else if (t === 'general') ghost = { type: 'general', level: lv, isFragment: true, char: card.char };
+                        else ghost = { type: t, level: lv }; // 刀/弓/枪均按图片渲染，无需 canvas 组件
+                        const p = (game.leftBF && game.leftBF.canvas) ? canvasPoint(game.leftBF.canvas, e) : { x: 0, y: 0 };
+                        game.cardDrag = {
+                            card, idx, bf: this, type: t, level: lv,
+                            startX: e.clientX, startY: e.clientY,
+                            mx: p.x, my: p.y, moved: false, ghost
+                        };
+                    });
+
                     slot.addEventListener('click', () => {
                         if (card.used) return;
+                        if (game._justDragged) { game._justDragged = false; return; }
                         if (game.selectedCard && game.selectedCard.idx === idx) {
                             // 再次点击同一张 → 取消选中
                             game.selectedCard = null;
@@ -262,7 +316,8 @@
             // 每次随机征兵 5 个，替换整手手牌
             this.cards = [];
             for (let i = 0; i < 5; i++) {
-                this.cards.push({ type: this.rollCard(), level: 1, used: false });
+                const rc = this.rollCard();
+                this.cards.push({ type: rc.type, level: 1, used: false, char: rc.char || null });
             }
             return true;
         }
@@ -272,46 +327,22 @@
             if (!this.isAI) this.renderCards();
         }
 
-        placeDefender(r, c, type, level = 1) {
+        placeDefender(r, c, type, level = 1, char = null) {
             const cfg = DEFENDERS[type];
-            const d = { r, c, type, level, hp: cfg.hp, maxHp: cfg.hp, atkTimer: 0, el: null, levelEl: null };
-            const cell = this.gridEl.querySelector(`[data-r="${r}"][data-c="${c}"]`);
-            if (cell) {
-                cell.classList.add('has-defender');
-                const defEl = document.createElement('div');
-                defEl.className = 'zyad-defender';
-                if (type === '枪') {
-                    // 枪兵：木+仓双图拼合
-                    const mu = document.createElement('img');
-                    mu.className = 'zyad-gun-mu';
-                    mu.src = 'canvas/mu.png';
-                    const cang = document.createElement('img');
-                    cang.className = 'zyad-gun-cang';
-                    cang.src = 'canvas/cang.png';
-                    defEl.appendChild(mu);
-                    defEl.appendChild(cang);
-                } else if (type === '骑') {
-                    // 骑（旗枪）：用 canvas 旗枪动效替换文字
-                    const cv = document.createElement('canvas');
-                    cv.width = 320; cv.height = 320;
-                    cv.className = 'zyad-qi-canvas';
-                    defEl.classList.add('zyad-defender-qi');
-                    defEl.appendChild(cv);
-                    d.qiFlag = new QiFlag(cv);
-                } else {
-                    defEl.textContent = cfg.name;
-                }
-                defEl.dataset.type = type;
-                defEl.dataset.level = level;
-                const lvl = document.createElement('div');
-                lvl.className = 'zyad-defender-level';
-                lvl.textContent = 'Lv' + level;
-                defEl.appendChild(lvl);
-                cell.appendChild(defEl);
-                d.el = defEl;
-                d.levelEl = lvl;
+            const hp = cfg ? cfg.hp : 1;
+            const d = {
+                r, c, type, level, hp, maxHp: hp, atkTimer: 0,
+                el: null, levelEl: null, dragging: false, attackFlash: 0, qiFlag: null, side: this.side
+            };
+            if (type === 'general') {
+                d.isFragment = true;
+                d.char = char;
+            } else if (type === '骑') {
+                // 骑（旗枪）：用 QiFlag 状态对象，绘制时由 drawFrame 调度
+                d.qiFlag = new QiFlag(FLAG_SIZE);
             }
             this.defenders.push(d);
+            return d;
         }
 
         // 升级到下一等级（×1.5 攻/速/血，回满血）
@@ -349,53 +380,21 @@
             };
         }
 
-        // 选中守护者：绘制射程圆圈
+        // 选中守护者：记录用于绘制射程圆圈
         showDefenderRange(d) {
-            if (!this.rangeLayer) return;
-            this.rangeLayer.innerHTML = '';
-            const cell = this.gridEl.querySelector(`[data-r="${d.r}"][data-c="${d.c}"]`);
-            if (!cell) return;
-            const stats = this.getEffectiveStats(d);
-            const cellRect = cell.getBoundingClientRect();
-            const layerRect = this.rangeLayer.getBoundingClientRect();
-            const cx = cellRect.left + cellRect.width / 2 - layerRect.left;
-            const cy = cellRect.top + cellRect.height / 2 - layerRect.top;
-            const pitch = cellRect.width + 2; // 含格间隙
-            // 射程按「可覆盖的格数」理解：守护者自身占 0.5 格，故补 0.5 使圆圈到达第 N 格边缘
-            const radius = (stats.range + 0.5) * pitch;
-            const circle = document.createElement('div');
-            circle.className = 'zyad-range-circle';
-            circle.style.width = (radius * 2) + 'px';
-            circle.style.height = (radius * 2) + 'px';
-            circle.style.left = (cx - radius) + 'px';
-            circle.style.top = (cy - radius) + 'px';
-            this.rangeLayer.appendChild(circle);
+            this.rangeDef = d;
         }
 
-        // 选中守护者：展示基本信息
+        // 选中守护者：记录用于绘制信息框
         showDefenderInfo(d) {
-            if (!this.infoTip || !this.boardEl) return;
-            const stats = this.getEffectiveStats(d);
-            const freq = (1 / stats.atkInterval).toFixed(2);
-            this.infoTip.innerHTML =
-                `<div class="zyad-info-name">${DEFENDERS[d.type].name} · Lv${d.level}</div>` +
-                `<div class="zyad-info-row">攻击力 <b>${stats.damage.toFixed(1)}</b></div>` +
-                `<div class="zyad-info-row">范围 <b>${stats.range}</b> 格</div>` +
-                `<div class="zyad-info-row">频率 <b>${freq}</b> 次/秒</div>`;
-            const cell = this.gridEl.querySelector(`[data-r="${d.r}"][data-c="${d.c}"]`);
-            if (cell) {
-                const cellRect = cell.getBoundingClientRect();
-                const boardRect = this.boardEl.getBoundingClientRect();
-                this.infoTip.style.left = (cellRect.left + cellRect.width / 2 - boardRect.left) + 'px';
-                this.infoTip.style.top = (cellRect.top - boardRect.top) + 'px';
-            }
-            this.infoTip.classList.remove('hidden');
+            this.infoDef = d;
+            this.rangeDef = d;
         }
 
         // 清除选中可视（射程圈 + 信息）
         clearDefenderSelectionVisuals() {
-            if (this.rangeLayer) this.rangeLayer.innerHTML = '';
-            if (this.infoTip) this.infoTip.classList.add('hidden');
+            this.rangeDef = null;
+            this.infoDef = null;
         }
 
         spawnEnemy(type, wave = 1) {
@@ -407,26 +406,18 @@
                 x: sc - this.colOffset,
                 y: sr,
                 hp: hp, maxHp: hp,
-                speed: cfg.speed, atkCooldown: 0,
+                speed: cfg.speed, atkCooldown: 0, stun: 0,
                 el: null, elHp: null
             };
-            const el = document.createElement('div');
-            el.className = 'zyad-enemy';
-            el.textContent = cfg.name;
-            const hpBar = document.createElement('div');
-            hpBar.className = 'zyad-enemy-hp';
-            const fill = document.createElement('div');
-            fill.className = 'zyad-enemy-hp-fill';
-            fill.style.width = '100%';
-            hpBar.appendChild(fill);
-            el.appendChild(hpBar);
-            this.enemyLayer.appendChild(el);
-            e.el = el;
-            e.elHp = fill;
             this.enemies.push(e);
         }
 
         updateEnemy(e, dt) {
+            // 眩晕：原地不动、不攻击
+            if (e.stun > 0) {
+                e.stun -= dt;
+                return;
+            }
             if (e.stepIdx >= this.path.length) return;
             const [tr, tc] = this.path[e.stepIdx];
             const tx = tc - this.colOffset;
@@ -463,12 +454,20 @@
         }
 
         removeEnemy(e) {
-            if (e.el) e.el.remove();
             const i = this.enemies.indexOf(e);
             if (i >= 0) this.enemies.splice(i, 1);
         }
 
         updateDefender(d, dt) {
+            if (d.isFragment) return; // 武将碎片占位、不攻击
+            // 武将技能：冷却到点自动释放大招（被动型 stunHit / none 不在此触发）
+            if (d.isGeneral && d.skill && SKILL_CD[d.skill] > 0) {
+                d.skillCd -= dt;
+                if (d.skillCd <= 0) {
+                    this.castSkill(d);
+                    d.skillCd = d.skillCdMax;
+                }
+            }
             d.atkTimer -= dt;
             if (d.atkTimer <= 0) {
                 const stats = this.getEffectiveStats(d);
@@ -486,12 +485,14 @@
                                 t.hp -= stats.damage;
                                 this.updateEnemyHP(t);
                                 this.showFloat(t.x, t.y, '-' + Math.round(stats.damage), 'crit');
+                                this.applyHitSkill(d, t);
                                 if (t.hp <= 0) {
                                     this.grain += 1;
                                     this.removeEnemy(t);
                                 }
                             }
                         }
+                        if (targets.length) this.applyLeapSplash(d, targets[0]);
                     } else if (stats.atkType === 'pierce') {
                         const targets = this.findEnemiesInLine(d.r, d.c, target, stats.range);
                         for (const t of targets) {
@@ -501,12 +502,14 @@
                                 t.hp -= stats.damage;
                                 this.updateEnemyHP(t);
                                 this.showFloat(t.x, t.y, '-' + Math.round(stats.damage), 'crit');
+                                this.applyHitSkill(d, t);
                                 if (t.hp <= 0) {
                                     this.grain += 1;
                                     this.removeEnemy(t);
                                 }
                             }
                         }
+                        this.applyLeapSplash(d, target);
                     } else {
                         if (isRanged) {
                             this.spawnProjectile(d.r, d.c, target, stats.damage, d.type);
@@ -514,6 +517,8 @@
                             target.hp -= stats.damage;
                             this.updateEnemyHP(target);
                             this.showFloat(target.x, target.y, '-' + Math.round(stats.damage), 'crit');
+                            this.applyHitSkill(d, target);
+                            this.applyLeapSplash(d, target);
                             if (target.hp <= 0) {
                                 this.grain += 1;
                                 this.removeEnemy(target);
@@ -529,17 +534,209 @@
 
         /* 触发守护者攻击动画 */
         triggerAttackAnim(d) {
-            if (!d.el) return;
             if (d.type === '骑' && d.qiFlag) {
                 d.qiFlag.swing(); // 旗枪挥砍动效
                 return;
             }
-            const map = { '弓': 'attacking-bow', '枪': 'attacking-spear', '刀': 'attacking-blade', '骑': 'attacking-cavalry' };
-            const cls = map[d.type];
-            if (!cls) return;
-            d.el.classList.remove(cls);
-            void d.el.offsetWidth; // 强制回流以重播动画
-            d.el.classList.add(cls);
+            // 近战/远程：闪白反馈（drawFrame 读取 attackFlash）
+            d.attackFlash = 0.28;
+        }
+
+        /* ─────────── 武将技能系统 ─────────── */
+        // 普攻命中后：概率眩晕（关兴/张苞/马超）
+        applyHitSkill(d, t) {
+            if (d.skill === 'stunHit' && t && t.hp > 0 && Math.random() < STUN_HIT_CHANCE) {
+                t.stun = STUN_HIT_DUR;
+                this.showFloat(t.x, t.y, '眩晕', 'crit');
+            }
+        }
+        // 跳斩溅射：对主目标周围 1 格敌人造成 50% 伤害（关羽/张翼），消耗一次充能
+        applyLeapSplash(d, t) {
+            if (d.leapCharges <= 0 || !t || t.hp <= 0) return;
+            d.leapCharges--;
+            const stats = this.getEffectiveStats(d);
+            const splash = stats.damage * LEAP_SPLASH;
+            const near = this.findAllEnemiesInRange(t.y, t.x, 1.0);
+            for (const e of near) {
+                if (e === t) continue;
+                e.hp -= splash;
+                this.updateEnemyHP(e);
+                this.showFloat(e.x, e.y, '-' + Math.round(splash), 'crit');
+                if (e.hp <= 0) { this.grain += 1; this.removeEnemy(e); }
+            }
+            this.spawnSlashFX(t.y, t.x);
+        }
+        // 大招分发（按技能冷却自动触发）
+        castSkill(d) {
+            const cx = d.c, cy = d.r;
+            const stats = this.getEffectiveStats(d);
+            switch (d.skill) {
+                case 'illusion': this.castIllusion(d, stats); break;
+                case 'leap': d.leapCharges = LEAP_CHARGES; this.spawnSlashFX(cy, cx); this.showFloat(cx, cy, '跳斩！', 'crit'); break;
+                case 'shout': this.castShout(d, cx, cy); break;
+                case 'fireBarrage': this.castBarrage(d, cx, cy, stats, 'fire'); break;
+                case 'holySword': this.castHolySword(d, cx, cy, stats); break;
+                case 'arrowRain': this.castBarrage(d, cx, cy, stats, 'arrow'); break;
+            }
+        }
+        // 赵云：幻象冲进敌群，来回突进七次
+        castIllusion(d, stats) {
+            this.skillFx.push({
+                kind: 'illusion', x: d.c, y: d.r,
+                dashes: 7, dmg: stats.damage * 1.3,
+                state: 'seek', target: null, life: 0
+            });
+            this.showFloat(d.c, d.r, '幻象突进！', 'crit');
+        }
+        // 张飞/关平：大喝一声，砸晕一圈敌人 2 秒
+        castShout(d, cx, cy) {
+            const hit = this.findAllEnemiesInRange(cy, cx, SHOUT_RADIUS);
+            for (const e of hit) e.stun = SHOUT_DUR;
+            this.skillFx.push({ kind: 'ring', x: cx, y: cy, r: 0, maxR: SHOUT_RADIUS, t: 0, life: 0.5, color: 'rgba(250,204,21,0.9)' });
+            this.showFloat(cx, cy, '大喝！', 'crit');
+        }
+        // 刘备：释放圣剑，范围伤害并击倒（眩晕）敌人
+        castHolySword(d, cx, cy, stats) {
+            const hit = this.findAllEnemiesInRange(cy, cx, HOLY_RADIUS);
+            const dmg = stats.damage * 2.2;
+            for (const e of hit) {
+                e.hp -= dmg; this.updateEnemyHP(e);
+                this.showFloat(e.x, e.y, '-' + Math.round(dmg), 'crit');
+                e.stun = HOLY_DUR;
+                if (e.hp <= 0) { this.grain += 1; this.removeEnemy(e); }
+            }
+            this.skillFx.push({ kind: 'sword', x: cx, y: cy, r: 0, maxR: HOLY_RADIUS, t: 0, life: 0.45 });
+            this.showFloat(cx, cy, '圣剑！', 'crit');
+        }
+        // 黄忠(火)/黄祖(箭)：从天而降的大量箭/火箭轰炸
+        castBarrage(d, cx, cy, stats, mode) {
+            const dmg = stats.damage * (mode === 'fire' ? 1.4 : 1.1);
+            const pool = this.enemies.slice();
+            for (let i = 0; i < BARRAGE_COUNT; i++) {
+                let tx, ty;
+                if (pool.length) {
+                    const e = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+                    tx = e.x; ty = e.y;
+                } else {
+                    const [pr, pc] = this.path[Math.floor(Math.random() * this.path.length)];
+                    tx = pc - this.colOffset + Math.random() * 0.6 - 0.3;
+                    ty = pr + Math.random() * 0.6 - 0.3;
+                }
+                this.skillFx.push({ kind: 'rain', fire: mode === 'fire', p: { x: tx, y: ty - 3, target: { x: tx, y: ty }, damage: dmg }, t: 0 });
+            }
+            this.showFloat(cx, cy, mode === 'fire' ? '火箭轰炸！' : '箭雨！', 'crit');
+        }
+        spawnSlashFX(r, c) {
+            this.skillFx.push({ kind: 'slash', x: c, y: r, t: 0, life: 0.3 });
+        }
+        removeSkillFx(fx) {
+            const i = this.skillFx.indexOf(fx);
+            if (i >= 0) this.skillFx.splice(i, 1);
+        }
+        updateSkillFx(dt) {
+            for (let i = this.skillFx.length - 1; i >= 0; i--) {
+                const fx = this.skillFx[i];
+                fx.t = (fx.t || 0) + dt;
+                if (fx.kind === 'illusion') {
+                    if (fx.state === 'seek') {
+                        let best = null, bd = Infinity;
+                        for (const e of this.enemies) {
+                            const dd = Math.hypot(e.x - fx.x, e.y - fx.y);
+                            if (dd < bd) { bd = dd; best = e; }
+                        }
+                        if (best) { fx.target = best; fx.state = 'dash'; }
+                        else { fx.life += dt; if (fx.life > 0.6) this.skillFx.splice(i, 1); }
+                    } else {
+                        const tg = fx.target;
+                        if (!tg || !this.enemies.includes(tg) || tg.hp <= 0) {
+                            fx.dashes--; fx.state = 'seek'; fx.target = null;
+                            if (fx.dashes <= 0) this.skillFx.splice(i, 1);
+                        } else {
+                            const dx = tg.x - fx.x, dy = tg.y - fx.y, dist = Math.hypot(dx, dy);
+                            const mv = 11 * dt;
+                            if (dist < 0.35) {
+                                tg.hp -= fx.dmg; this.updateEnemyHP(tg);
+                                this.showFloat(tg.x, tg.y, '-' + Math.round(fx.dmg), 'crit');
+                                if (tg.hp <= 0) { this.grain += 1; this.removeEnemy(tg); }
+                                this.spawnSpearHitFX(tg.x, tg.y);
+                                fx.dashes--; fx.state = 'seek'; fx.target = null;
+                                if (fx.dashes <= 0) this.skillFx.splice(i, 1);
+                            } else { fx.x += dx / dist * mv; fx.y += dy / dist * mv; }
+                        }
+                    }
+                } else if (fx.kind === 'rain') {
+                    const p = fx.p;
+                    const dx = p.target.x - p.x, dy = p.target.y - p.y, dist = Math.hypot(dx, dy);
+                    const mv = 12 * dt;
+                    if (dist < 0.3) {
+                        const tg = this.enemies.find(e => Math.hypot(e.x - p.target.x, e.y - p.target.y) < 0.5);
+                        if (tg) {
+                            tg.hp -= p.damage; this.updateEnemyHP(tg);
+                            this.showFloat(tg.x, tg.y, '-' + Math.round(p.damage), 'crit');
+                            if (tg.hp <= 0) { this.grain += 1; this.removeEnemy(tg); }
+                        }
+                        this.skillFx.push({ kind: 'boom', x: p.target.x, y: p.target.y, t: 0, life: 0.35, fire: fx.fire });
+                        this.skillFx.splice(i, 1);
+                    } else { p.x += dx / dist * mv; p.y += dy / dist * mv; }
+                } else if (fx.kind === 'ring' || fx.kind === 'sword') {
+                    fx.r = fx.maxR * Math.min(1, fx.t / fx.life);
+                    if (fx.t >= fx.life) this.skillFx.splice(i, 1);
+                } else { // slash / boom
+                    if (fx.t >= fx.life) this.skillFx.splice(i, 1);
+                }
+            }
+        }
+        drawSkillFx(ctx, fx) {
+            const S = CELL;
+            const toX = (gx) => (gx + 0.5) * S;
+            const toY = (gy) => (gy + 0.5) * S;
+            ctx.save();
+            if (fx.kind === 'illusion') {
+                const x = toX(fx.x), y = toY(fx.y);
+                ctx.globalAlpha = 0.5;
+                ctx.fillStyle = '#67e8f9';
+                ctx.beginPath();
+                ctx.ellipse(x, y, S * 0.28, S * 0.4, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 0.95; ctx.fillStyle = '#0e7490';
+                ctx.font = 'bold 16px "STKaiti", serif';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('云', x, y);
+            } else if (fx.kind === 'ring') {
+                const x = toX(fx.x), y = toY(fx.y), r = fx.r * S;
+                ctx.globalAlpha = Math.max(0, 1 - fx.t / fx.life);
+                ctx.strokeStyle = fx.color; ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+            } else if (fx.kind === 'sword') {
+                const x = toX(fx.x), y = toY(fx.y), r = fx.r * S;
+                ctx.globalAlpha = Math.max(0, 1 - fx.t / fx.life);
+                ctx.strokeStyle = '#fde68a'; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x, y + r); ctx.stroke();
+                ctx.strokeStyle = 'rgba(253,230,138,0.5)'; ctx.lineWidth = 10;
+                ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+            } else if (fx.kind === 'rain') {
+                const x = toX(fx.p.x), y = toY(fx.p.y);
+                const ang = Math.atan2(fx.p.target.y - fx.p.y, fx.p.target.x - fx.p.x);
+                ctx.translate(x, y); ctx.rotate(ang);
+                ctx.strokeStyle = fx.fire ? '#f97316' : '#fbbf24';
+                ctx.shadowBlur = fx.fire ? 8 : 4;
+                ctx.shadowColor = fx.fire ? '#f97316' : '#fbbf24';
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(-S * 0.3, 0); ctx.lineTo(S * 0.3, 0); ctx.stroke();
+                ctx.restore(); return;
+            } else if (fx.kind === 'boom') {
+                const x = toX(fx.x), y = toY(fx.y);
+                const r = (fx.t / fx.life) * S * 0.6;
+                ctx.globalAlpha = Math.max(0, 1 - fx.t / fx.life);
+                ctx.fillStyle = fx.fire ? 'rgba(249,115,22,0.8)' : 'rgba(251,191,36,0.7)';
+                ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+            } else if (fx.kind === 'slash') {
+                const x = toX(fx.x), y = toY(fx.y);
+                ctx.globalAlpha = Math.max(0, 1 - fx.t / fx.life) * 0.9;
+                ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.arc(x, y, S * 0.4, -0.6, 0.9); ctx.stroke();
+            }
+            ctx.restore();
         }
 
         findAllEnemiesInRange(r, c, range) {
@@ -586,49 +783,25 @@
         }
 
         spawnProjectile(r, c, target, damage, defType) {
-            const el = document.createElement('div');
             // 枪：飞矛特效（"木"字飞出再收回）
             if (defType === '枪') {
-                el.className = 'zyad-spear';
-                const img = document.createElement('img');
-                img.src = 'canvas/mu.png';
-                el.appendChild(img);
-                this.effectLayer.appendChild(el);
-                // 隐藏原地木字，让它"飞出去"
-                let origMu = null;
-                const def = this.defenders.find(d => d.r === r && d.c === c);
-                if (def && def.el) {
-                    origMu = def.el.querySelector('.zyad-gun-mu');
-                    if (origMu) origMu.style.visibility = 'hidden';
-                }
-                const p = { x: c, y: r, target, damage, el, defType, speed: 14,
-                    startX: c, startY: r, phase: 'out', hitDone: false, origMu };
+                const p = { x: c, y: r, target, damage, defType, speed: 14,
+                    startX: c, startY: r, phase: 'out', hitDone: false };
                 this.projectiles.push(p);
                 return;
             }
             // 其他：标准投射物
-            el.className = 'zyad-projectile';
-            if (defType === '弓') el.classList.add('arrow');
-            this.effectLayer.appendChild(el);
-            const p = { x: c, y: r, target, damage, el, speed: 8, defType: defType || null };
-            if (defType === '弓') {
-                const angle = Math.atan2(target.y - r, target.x - c) * 180 / Math.PI;
-                el.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
-            }
+            const p = { x: c, y: r, target, damage, speed: 8, defType: defType || null };
             this.projectiles.push(p);
         }
 
         /* 矛击命中粒子爆发 */
         spawnSpearHitFX(x, y) {
             for (let i = 0; i < 10; i++) {
-                const spark = document.createElement('div');
-                spark.className = 'zyad-spear-spark';
-                spark.style.left = '0px'; spark.style.top = '0px';
-                this.effectLayer.appendChild(spark);
                 const angle = Math.random() * Math.PI * 2;
                 const spd = 1.5 + Math.random() * 3;
                 this.effects.push({
-                    el: spark, x, y, t: 0,
+                    x, y, t: 0,
                     vx: Math.cos(angle) * spd,
                     vy: Math.sin(angle) * spd,
                     life: 0.4 + Math.random() * 0.3,
@@ -638,16 +811,12 @@
         }
 
         updateProjectile(p, dt) {
-            // ── 飞矛特殊逻辑（旋转指向目标 + 飞出收回）──
+            // ── 飞矛特殊逻辑（飞出 → 命中 → 收回）──
             if (p.defType === '枪') {
                 const dx = p.target.x - p.x;
                 const dy = p.target.y - p.y;
                 const dist = Math.hypot(dx, dy);
-                // 攻击方向角度（mu 图立着，尖头朝上，需 +90°）
-                const atkAngle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
                 if (p.phase === 'out') {
-                    // 实时旋转指向目标
-                    p.el.style.transform = `translate(-50%, -50%) rotate(${atkAngle}deg)`;
                     if (dist < 0.35 || !this.enemies.includes(p.target)) {
                         if (this.enemies.includes(p.target) && !p.hitDone) {
                             p.hitDone = true;
@@ -655,15 +824,6 @@
                             this.updateEnemyHP(p.target);
                             this.showFloat(p.target.x, p.target.y, '-' + p.damage, 'crit');
                             this.spawnSpearHitFX(p.target.x, p.target.y);
-                            // 仓字受击抖动
-                            const def = this.defenders.find(d => d.r === p.startY && d.c === p.startX);
-                            if (def && def.el) {
-                                const cangEl = def.el.querySelector('.zyad-gun-cang');
-                                if (cangEl) {
-                                    cangEl.classList.add('shaking');
-                                    setTimeout(() => cangEl.classList.remove('shaking'), 350);
-                                }
-                            }
                             if (p.target.hp <= 0) {
                                 this.grain += 1;
                                 this.removeEnemy(p.target);
@@ -676,15 +836,10 @@
                         p.y += (dy / dist) * move;
                     }
                 } else {
-                    // 飞回（保持旋转方向）
-                    p.el.style.transform = `translate(-50%, -50%) rotate(${atkAngle + 180}deg)`;
                     const bx = p.startX - p.x;
                     const by = p.startY - p.y;
                     const bd = Math.hypot(bx, by);
                     if (bd < 0.3) {
-                        // 飞回原位，恢复原地木字
-                        if (p.origMu) p.origMu.style.visibility = '';
-                        p.el.remove();
                         const i = this.projectiles.indexOf(p);
                         if (i >= 0) this.projectiles.splice(i, 1);
                         return;
@@ -710,7 +865,6 @@
                         this.removeEnemy(p.target);
                     }
                 }
-                p.el.remove();
                 const i = this.projectiles.indexOf(p);
                 if (i >= 0) this.projectiles.splice(i, 1);
                 return;
@@ -718,60 +872,29 @@
             const move = p.speed * dt;
             p.x += (dx / dist) * move;
             p.y += (dy / dist) * move;
-            if (p.defType === '弓') {
-                const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-                p.el.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
-            }
         }
 
         showFloat(x, y, text, cls) {
-            const el = document.createElement('div');
-            el.className = 'zyad-float ' + (cls || '');
-            el.textContent = text;
-            this.effectLayer.appendChild(el);
-            this.effects.push({ el, x, y, t: 0 });
+            this.effects.push({ x, y, t: 0, text: String(text), cls: cls || '' });
         }
 
         updateEffects(dt) {
             for (let i = this.effects.length - 1; i >= 0; i--) {
                 const ef = this.effects[i];
+                ef.t += dt;
                 if (ef.isSpark) {
-                    ef.t += dt;
-                    ef.x += (ef.vx || 0) * dt * 60;
-                    ef.y += (ef.vy || 0) * dt * 60;
-                    ef.el.style.opacity = Math.max(0, 1 - ef.t / ef.life);
-                    if (ef.t >= ef.life) {
-                        ef.el.remove();
-                        this.effects.splice(i, 1);
-                    }
-                } else {
-                    ef.t += dt;
-                    if (ef.t > 0.8) {
-                        ef.el.remove();
-                        this.effects.splice(i, 1);
-                    }
+                    ef.x += (ef.vx || 0) * dt * 2;
+                    ef.y += (ef.vy || 0) * dt * 2;
+                    if (ef.t >= ef.life) this.effects.splice(i, 1);
+                } else if (ef.t > 0.8) {
+                    this.effects.splice(i, 1);
                 }
             }
         }
 
         syncDOM() {
-            if (!this.enemyLayer) return;
-            const w = this.enemyLayer.clientWidth;
-            const h = this.enemyLayer.clientHeight;
-            const tw = w / COLS;
-            const th = h / ROWS;
-            for (const e of this.enemies) {
-                e.el.style.left = (e.x * tw + tw / 2) + 'px';
-                e.el.style.top = (e.y * th + th / 2) + 'px';
-            }
-            for (const p of this.projectiles) {
-                p.el.style.left = (p.x * tw + tw / 2) + 'px';
-                p.el.style.top = (p.y * th + th / 2) + 'px';
-            }
-            for (const ef of this.effects) {
-                ef.el.style.left = (ef.x * tw + tw / 2) + 'px';
-                ef.el.style.top = (ef.y * th + th / 2) + 'px';
-            }
+            // 已改为 canvas 每帧绘制
+            this.drawFrame();
         }
 
         updateDefenderHP(d) {
@@ -779,13 +902,10 @@
         }
 
         updateEnemyHP(e) {
-            e.elHp.style.width = Math.max(0, (e.hp / e.maxHp) * 100) + '%';
+            // 血条改为 canvas 绘制（drawFrame），此处无需操作
         }
 
         removeDefender(d) {
-            if (d.el) d.el.remove();
-            const cell = this.gridEl?.querySelector(`[data-r="${d.r}"][data-c="${d.c}"]`);
-            if (cell) cell.classList.remove('has-defender');
             const i = this.defenders.indexOf(d);
             if (i >= 0) this.defenders.splice(i, 1);
         }
@@ -800,6 +920,287 @@
             if (this.aiBar) {
                 this.aiBar.querySelector('.zyad-ai-grain').textContent = Math.floor(this.grain);
             }
+        }
+
+        // ─────────── canvas 绘制 ───────────
+        drawFrame() {
+            const ctx = this.ctx;
+            if (!ctx) return;
+            const S = CELL;
+            ctx.clearRect(0, 0, BOARD_W, BOARD_H);
+
+            // 1) 地块
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const st = this.grid[r][c];
+                    const key = st === TILE.PATH ? 'daolu'
+                              : st === TILE.LOCKED ? 'huangdi'
+                              : st === TILE.CLEARED ? 'kongdi'
+                              : st === TILE.ENTRY ? 'diying'
+                              : st === TILE.ODOU ? 'adou' : null;
+                    const img = key && _img[key];
+                    if (img) ctx.drawImage(img, c * S, r * S, S, S);
+                    else { ctx.fillStyle = '#222'; ctx.fillRect(c * S, r * S, S, S); }
+                }
+            }
+
+            // 2) 选中士兵的射程圈
+            if (game.selectedDefender && game.selectedDefender.defender.side === this.side) {
+                const d = game.selectedDefender.defender;
+                const stats = this.getEffectiveStats(d);
+                const cx = d.c * S + S / 2, cy = d.r * S + S / 2;
+                const radius = (stats.range + 0.5) * S;
+                ctx.save();
+                ctx.strokeStyle = 'rgba(120,200,255,0.7)';
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.stroke();
+                ctx.restore();
+            }
+
+            // 3) 拖拽落点高亮
+            if (game.drag && game.drag.d.side === this.side) {
+                const cell = cellAt(this, game.drag.mx, game.drag.my);
+                if (cell) {
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(80,220,120,0.22)';
+                    ctx.fillRect(cell.c * S, cell.r * S, S, S);
+                    ctx.restore();
+                }
+            }
+
+            // 3b) 征兵卡牌拖拽落点高亮
+            if (game.cardDrag && game.cardDrag.moved && game.cardDrag.bf === this) {
+                const cell = cellAt(this, game.cardDrag.mx, game.cardDrag.my);
+                if (cell) {
+                    const ok = cardDropValid(this, game.cardDrag.card, cell.r, cell.c);
+                    ctx.save();
+                    ctx.fillStyle = ok ? 'rgba(80,220,120,0.22)' : 'rgba(220,80,80,0.25)';
+                    ctx.fillRect(cell.c * S, cell.r * S, S, S);
+                    ctx.restore();
+                }
+            }
+
+            // 4) 防守者（拖拽中的单独画在鼠标处）
+            for (const d of this.defenders) {
+                if (d.dragging) continue;
+                const cx = d.c * S + S / 2, cy = d.r * S + S / 2;
+                this.drawDefender(ctx, d, cx, cy);
+            }
+
+            // 5) 敌人
+            for (const e of this.enemies) {
+                const cx = e.x * S + S / 2, cy = e.y * S + S / 2;
+                const img = _img['zu'];
+                if (img) {
+                    const w = S * 0.85, h = S * 0.85;
+                    ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h);
+                } else {
+                    ctx.fillStyle = '#c33';
+                    ctx.beginPath(); ctx.arc(cx, cy, S * 0.3, 0, Math.PI * 2); ctx.fill();
+                }
+                const bw = S * 0.8, bh = 4;
+                const bx = cx - bw / 2, by = cy - S * 0.55;
+                ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(bx, by, bw, bh);
+                ctx.fillStyle = '#5f5'; ctx.fillRect(bx, by, bw * Math.max(0, e.hp / e.maxHp), bh);
+                // 眩晕标记
+                if (e.stun > 0) {
+                    ctx.save();
+                    ctx.fillStyle = '#fde047';
+                    ctx.font = 'bold 12px sans-serif';
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText('★', cx, cy - S * 0.55 - 6);
+                    ctx.restore();
+                }
+            }
+
+            // 6) 投射物
+            for (const p of this.projectiles) this.drawProjectile(ctx, p);
+
+            // 7) 特效（飘字 / 火花）
+            for (const ef of this.effects) {
+                if (ef.isSpark) {
+                    ctx.save();
+                    ctx.globalAlpha = Math.max(0, 1 - ef.t / ef.life);
+                    ctx.fillStyle = '#ffd24a';
+                    ctx.beginPath(); ctx.arc(ef.x * S + S / 2, ef.y * S + S / 2, 3, 0, Math.PI * 2); ctx.fill();
+                    ctx.restore();
+                } else {
+                    const a = Math.max(0, 1 - ef.t / 0.8);
+                    ctx.save();
+                    ctx.globalAlpha = a;
+                    ctx.fillStyle = ef.cls === 'crit' ? '#ff5555' : '#ffffff';
+                    ctx.font = 'bold 14px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(ef.text, ef.x * S + S / 2, ef.y * S + S / 2 - ef.t * 30);
+                    ctx.restore();
+                }
+            }
+
+            // 7b) 武将技能特效
+            for (const fx of this.skillFx) this.drawSkillFx(ctx, fx);
+
+            // 8) 拖动中的士兵（跟随鼠标）
+            if (game.drag && game.drag.d.side === this.side) {
+                const d = game.drag.d;
+                ctx.save();
+                ctx.globalAlpha = 0.85;
+                this.drawDefender(ctx, d, game.drag.mx, game.drag.my);
+                ctx.restore();
+            }
+
+            // 8b) 征兵卡牌拖拽幽灵（跟随鼠标）
+            if (game.cardDrag && game.cardDrag.moved && game.cardDrag.bf === this && game.cardDrag.ghost) {
+                ctx.save();
+                ctx.globalAlpha = 0.85;
+                this.drawDefender(ctx, game.cardDrag.ghost, game.cardDrag.mx, game.cardDrag.my);
+                ctx.restore();
+            }
+
+            // 9) 选中信息框
+            if (game.selectedDefender && game.selectedDefender.defender.side === this.side && this.infoDef) {
+                this.drawInfoBox(ctx, this.infoDef);
+            }
+        }
+
+        drawDefender(ctx, d, cx, cy) {
+            const S = CELL;
+            if (d.isFragment) {
+                // 武将碎片：金边方块底 + 单字
+                const s = S * 0.7;
+                ctx.save();
+                ctx.fillStyle = 'rgba(60,48,26,0.92)';
+                ctx.fillRect(cx - s / 2, cy - s / 2, s, s);
+                ctx.strokeStyle = '#f0d088'; ctx.lineWidth = 1.5;
+                ctx.strokeRect(cx - s / 2, cy - s / 2, s, s);
+                ctx.fillStyle = '#f5d77a';
+                ctx.font = 'bold 24px "STKaiti", serif';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(d.char, cx, cy);
+                ctx.restore();
+                return;
+            }
+            if (d.generalName) {
+                // 合成武将：淡黄底（合并后的单元格）+ 武将姓名居中，明确区别于普通士兵
+                const pad = S * 0.08;
+                ctx.save();
+                ctx.fillStyle = 'rgba(255, 236, 150, 0.96)';
+                ctx.fillRect(cx - S / 2 + pad, cy - S / 2 + pad, S - 2 * pad, S - 2 * pad);
+                ctx.strokeStyle = '#caa84a'; ctx.lineWidth = 1.5;
+                ctx.strokeRect(cx - S / 2 + pad, cy - S / 2 + pad, S - 2 * pad, S - 2 * pad);
+                ctx.fillStyle = '#7a3b00';
+                ctx.font = 'bold 18px "STKaiti", serif';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(d.generalName, cx, cy - 2);
+                ctx.fillStyle = '#9a6b1f';
+                ctx.font = 'bold 9px sans-serif';
+                ctx.fillText(DEFENDERS[d.type] ? DEFENDERS[d.type].name : d.type, cx, cy + S * 0.26);
+                if (d.attackFlash > 0) {
+                    d.attackFlash = Math.max(0, d.attackFlash - 0.05);
+                    ctx.save();
+                    ctx.globalAlpha = d.attackFlash;
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath(); ctx.arc(cx, cy, S * 0.5, 0, Math.PI * 2); ctx.fill();
+                    ctx.restore();
+                }
+                ctx.restore();
+                return;
+            }
+            if (d.type === '骑') {
+                if (d.qiFlag) { d.qiFlag.update(); d.qiFlag.drawAt(ctx, cx, cy); }
+            } else if (d.type === '枪') {
+                // 原DOM：木(mu)与仓(cang)并排横置，cang translate(-2px,6px)
+                const mu = _img['mu'], cang = _img['cang'];
+                const sc = S * 0.0224; // 整体缩放（0.028 × 0.8 = 缩小20%）
+                const mw = 16 * sc, mh = 39 * sc;
+                const cw = 16 * sc, ch = 31 * sc;
+                const totalW = mw + cw - 2 * sc;
+                const sx = cx - totalW / 2;
+                if (mu) ctx.drawImage(mu, sx, cy - mh / 2, mw, mh);
+                if (cang) ctx.drawImage(cang, sx + mw - 2 * sc, cy - ch / 2 + 6 * sc, cw, ch);
+            } else if (d.type === '刀') {
+                const im = _img['dao'] || _img['daobing'];
+                if (im) { const w = S * 1.1, h = S * 1.1; ctx.drawImage(im, cx - w / 2, cy - h / 2, w, h); }
+                else { ctx.fillStyle = '#ddd'; ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('刀', cx, cy); }
+            } else if (d.type === '弓') {
+                const im = _img['gong'] || _img['gong2'];
+                if (im) { const w = S * 1.0, h = S * 1.2; ctx.drawImage(im, cx - w / 2, cy - h / 2, w, h); }
+                else { ctx.fillStyle = '#ddc'; ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('弓', cx, cy); }
+            }
+            // 已合成武将：叠加姓名金标
+            if (d.generalName) {
+                ctx.save();
+                ctx.fillStyle = '#f5d77a';
+                ctx.font = 'bold 12px "STKaiti", serif';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+                ctx.shadowBlur = 3; ctx.shadowColor = 'rgba(0,0,0,0.8)';
+                ctx.fillText(d.generalName, cx, cy - S * 0.42);
+                ctx.restore();
+            }
+            // 攻击闪白
+            if (d.attackFlash > 0) {
+                d.attackFlash = Math.max(0, d.attackFlash - 0.05);
+                ctx.save();
+                ctx.globalAlpha = d.attackFlash;
+                ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.arc(cx, cy, S * 0.5, 0, Math.PI * 2); ctx.fill();
+                ctx.restore();
+            }
+            // 等级角标
+            ctx.save();
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            const tw = S * 0.44, th = S * 0.32;
+            const lx = cx + S * 0.16, ly = cy - S * 0.42;
+            ctx.fillRect(lx, ly, tw, th);
+            ctx.fillStyle = '#ffd24a';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('Lv' + d.level, lx + tw / 2, ly + th / 2);
+            ctx.restore();
+        }
+
+        drawProjectile(ctx, p) {
+            const S = CELL;
+            const x = p.x * S + S / 2, y = p.y * S + S / 2;
+            if (p.defType === '枪') {
+                const mu = _img['mu'];
+                const ang = Math.atan2(p.target.y - p.y, p.target.x - p.x) + Math.PI / 2;
+                ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+                if (mu) ctx.drawImage(mu, -S * 0.1, -S * 0.4, S * 0.2, S * 0.8);
+                else { ctx.fillStyle = '#cba'; ctx.fillRect(-2, -S * 0.4, 4, S * 0.8); }
+                ctx.restore();
+            } else if (p.defType === '弓') {
+                const ang = Math.atan2(p.target.y - p.y, p.target.x - p.x);
+                ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+                ctx.strokeStyle = '#eee'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(-S * 0.3, 0); ctx.lineTo(S * 0.3, 0); ctx.stroke();
+                ctx.restore();
+            } else {
+                ctx.fillStyle = '#ffec8b';
+                ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+
+        drawInfoBox(ctx, d) {
+            const S = CELL;
+            const stats = this.getEffectiveStats(d);
+            const cx = d.c * S + S / 2, cy = d.r * S;
+            const lines = [
+                `${d.generalName ? d.generalName : DEFENDERS[d.type].name} · Lv${d.level}`,
+                `攻击 ${stats.damage.toFixed(1)}  范围 ${stats.range}`,
+                `频率 ${(1 / stats.atkInterval).toFixed(2)}/s`
+            ];
+            if (d.generalName) lines.push(`技能 ${SKILL_NAME[d.skill]}`);
+            ctx.save();
+            ctx.font = '11px sans-serif';
+            let w = 0; for (const l of lines) w = Math.max(w, ctx.measureText(l).width);
+            w += 12; const h = lines.length * 14 + 8;
+            let bx = cx - w / 2, by = cy - h - 6;
+            if (by < 0) by = cy + S * 0.5;
+            ctx.fillStyle = 'rgba(0,0,0,0.78)';
+            ctx.fillRect(bx, by, w, h);
+            ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+            lines.forEach((l, i) => ctx.fillText(l, bx + 6, by + 4 + i * 14));
+            ctx.restore();
         }
 
         getDefenderAt(r, c) {
@@ -823,10 +1224,7 @@
                     }
                     if (locked.length) {
                         const [r, c] = locked[Math.floor(Math.random() * locked.length)];
-                        this.grid[r][c] = TILE.CLEARED;
-                        // 更新 DOM
-                        const cell = this.gridEl.querySelector(`[data-r="${r}"][data-c="${c}"]`);
-                        if (cell) { cell.className = 'zyad-cell cleared'; cell.style.backgroundImage = "url('canvas/kongdi.png')"; cell.dataset.r = r; cell.dataset.c = c; }
+                        this.grid[r][c] = TILE.CLEARED;   // drawFrame 会按 grid 重绘地块
                         const idx = this.cards.indexOf(card);
                         this.useCard(idx);
                     }
@@ -875,7 +1273,9 @@
         aiTimer: 0,
         selectedCard: null,
         selectedDefender: null,
-        result: null
+        drag: null,
+        result: null,
+        generalPool: [],            // 武将碎片剩余池（每局重置）
     };
 
     // ─────────── DOM ───────────
@@ -955,10 +1355,8 @@
     })();
 
     class QiFlag {
-        constructor(canvas) {
-            this.canvas = canvas;
-            this.ctx = canvas.getContext('2d');
-            this.size = canvas.width || 160;
+        constructor(size = 160) {
+            this.size = size;
             this.initialAngle = -10;     // 旗枪初始微抬角度
             this.angle = this.initialAngle;
             this.targetAngle = this.initialAngle;
@@ -966,15 +1364,23 @@
             this.widthScale = 1;
             this.heightScale = 1;
             this.shake = 0;
-            // 布局（pivot 居中，保证 360° 挥砍不裁切）
-            this.baseW = this.size * 0.28;   // 旗杆显示宽
-            this.baseH = this.size * 0.30;   // 旗杆显示高
-            this.flagW = this.size ;   // 旗面基础宽（×4 后仍可容纳）
+            this.canvas = null;
+            this.ctx = null;
+            this._layout();
+        }
+        _layout() {
+            const S = this.size;
+            this.baseW = S * 0.28;   // 旗杆显示宽
+            this.baseH = S * 0.30;   // 旗杆显示高
+            this.flagW = S;          // 旗面基础宽（×4 后仍可容纳）
             this.flagH = this.flagW * 72 / 822 * 8;   // 旗面高度加倍
-            this.pivotX = this.size / 2;
-            this.pivotY = this.size * 0.36;  // 旗杆顶部（旗面挂载点）——上移使杆+旗面整体居中
+            this.pivotX = S / 2;
+            this.pivotY = S * 0.36;  // 旗杆顶部（旗面挂载点）
+        }
+        attach(canvas) {
+            this.canvas = canvas;
+            this.ctx = canvas.getContext('2d');
             _qiFlags.push(this);
-            this.render();
         }
         swing() {
             if (this.state === 'ATTACK') return;
@@ -985,68 +1391,71 @@
             this.shake = this.size * 0.08;
             this.state = 'ATTACK';
         }
-        render() {
-            const ctx = this.ctx, S = this.size;
-            ctx.clearRect(0, 0, S, S);
-            if (!this.canvas.isConnected) return; // 单位已移除，跳过
+        // 推进挥砍动画状态（每帧调用，与是否挂载到 DOM 无关）
+        update() {
+            if (this.state !== 'ATTACK') return;
+            const angleDiff = this.targetAngle - this.angle;
+            if (Math.abs(angleDiff) > 1) {
+                this.angle += angleDiff * 0.25;
+                const traveled = Math.abs(this.angle - this.initialAngle);
+                const progress = Math.min(traveled / FLAG_SWING_TURNS, 1);
+                if (progress < 0.6) {
+                    this.widthScale = FLAG_ATTACK_SCALE;
+                    this.heightScale = FLAG_ATTACK_HEIGHT_SCALE;
+                } else {
+                    const t = (progress - 0.6) / 0.4;
+                    const ease = t * t * (3 - 2 * t); // smoothstep
+                    this.widthScale = FLAG_ATTACK_SCALE - (FLAG_ATTACK_SCALE - 1) * ease;
+                    this.heightScale = FLAG_ATTACK_HEIGHT_SCALE - (FLAG_ATTACK_HEIGHT_SCALE - 1) * ease;
+                }
+            } else {
+                this.angle = this.initialAngle;
+                this.widthScale = 1;
+                this.heightScale = 1;
+                this.state = 'IDLE';
+            }
+        }
+        // 在本地坐标系（以 size×size 方框左上角为原点）绘制旗枪
+        _drawShape(ctx) {
             if (!_qiImgCache.base || !_qiImgCache.flag) return;
-
-            // 旗杆（底座 qi.png）抖动
             let sx = 0, sy = 0;
             if (this.shake > 0.3) {
                 sx = (Math.random() - 0.5) * this.shake;
                 sy = (Math.random() - 0.5) * this.shake;
                 this.shake *= 0.85;
             } else { this.shake = 0; }
-
-            ctx.drawImage(
-                _qiImgCache.base,
-                this.pivotX - this.baseW / 2 + sx, this.pivotY + sy,
-                this.baseW, this.baseH
-            );
-
-            // 旗面（qi_qiang.png）挥砍推进：逆时针，末段渐进缩回宽度
-            if (this.state === 'ATTACK') {
-                const angleDiff = this.targetAngle - this.angle;
-                if (Math.abs(angleDiff) > 1) {
-                    this.angle += angleDiff * 0.25;
-                    const traveled = Math.abs(this.angle - this.initialAngle);
-                    const progress = Math.min(traveled / FLAG_SWING_TURNS, 1);
-                    if (progress < 0.6) {
-                        this.widthScale = FLAG_ATTACK_SCALE;
-                        this.heightScale = FLAG_ATTACK_HEIGHT_SCALE;
-                    } else {
-                        const t = (progress - 0.6) / 0.4;
-                        const ease = t * t * (3 - 2 * t); // smoothstep
-                        this.widthScale = FLAG_ATTACK_SCALE - (FLAG_ATTACK_SCALE - 1) * ease;
-                        this.heightScale = FLAG_ATTACK_HEIGHT_SCALE - (FLAG_ATTACK_HEIGHT_SCALE - 1) * ease;
-                    }
-                } else {
-                    this.angle = this.initialAngle;
-                    this.widthScale = 1;
-                    this.heightScale = 1;
-                    this.state = 'IDLE';
-                }
-            }
-
-            // 旗面 pivot 在左端，挂在旗杆顶部
+            ctx.drawImage(_qiImgCache.base, this.pivotX - this.baseW / 2 + sx, this.pivotY + sy, this.baseW, this.baseH);
             const fw = this.flagW * this.widthScale;
             const fh = this.flagH * this.heightScale;
             ctx.save();
-            ctx.translate(this.pivotX + sx, this.pivotY + sy + this.size * 0.072);   // 旗面按比例下移（往上调3px，约7px显示）
+            ctx.translate(this.pivotX + sx, this.pivotY + sy + this.size * 0.072);
             ctx.rotate(this.angle * Math.PI / 180);
             ctx.drawImage(_qiImgCache.flag, 0, -fh / 2, fw, fh);
             ctx.restore();
         }
+        // 征兵卡牌：绘制到自身 canvas
+        renderCard() {
+            if (!this.ctx) return;
+            this.ctx.clearRect(0, 0, this.size, this.size);
+            this._drawShape(this.ctx);
+        }
+        // 战场：以 (cx, cy) 为方框中心绘制
+        drawAt(ctx, cx, cy) {
+            ctx.save();
+            ctx.translate(cx - this.size / 2, cy - this.size / 2);
+            this._drawShape(ctx);
+            ctx.restore();
+        }
     }
 
-    // 共享渲染循环：驱动所有旗枪 canvas（自动剔除已脱离 DOM 的实例）
+    // 共享渲染循环：驱动征兵卡牌的旗枪 canvas（自动剔除已脱离 DOM 的实例）
     const _qiFlags = [];
     function _qiRenderLoop() {
         for (let i = _qiFlags.length - 1; i >= 0; i--) {
             const qf = _qiFlags[i];
-            if (!qf.canvas.isConnected) { _qiFlags.splice(i, 1); continue; }
-            qf.render();
+            if (!qf.canvas || !qf.canvas.isConnected) { _qiFlags.splice(i, 1); continue; }
+            qf.update();
+            qf.renderCard();
         }
         requestAnimationFrame(_qiRenderLoop);
     }
@@ -1069,6 +1478,8 @@
             for (const p of [...game.rightBF.projectiles]) game.rightBF.updateProjectile(p, dt);
             game.leftBF.updateEffects(dt);
             game.rightBF.updateEffects(dt);
+            game.leftBF.updateSkillFx(dt);
+            game.rightBF.updateSkillFx(dt);
             game.leftBF.syncDOM();
             game.rightBF.syncDOM();
 
@@ -1110,99 +1521,265 @@
         resultText.textContent = text;
     }
 
-    // ─────────── 点击交互（玩家操作左半）───────────
-    arenaEl.addEventListener('click', (e) => {
-        const cell = e.target.closest('.zyad-cell');
-        if (!cell || cell.dataset.side !== 'left') return;
-        const r = parseInt(cell.dataset.r);
-        const c = parseInt(cell.dataset.c);
-        const bf = game.leftBF;
-        const existingDef = bf.getDefenderAt(r, c);
+    // ─────────── 坐标换算 / 格子命中 ───────────
+    function canvasPoint(canvas, evt) {
+        const rect = canvas.getBoundingClientRect();
+        const sx = canvas.width / rect.width;
+        const sy = canvas.height / rect.height;
+        return { x: (evt.clientX - rect.left) * sx, y: (evt.clientY - rect.top) * sy };
+    }
+    function cellAt(bf, x, y) {
+        const c = Math.floor(x / CELL), r = Math.floor(y / CELL);
+        if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return null;
+        return { r, c };
+    }
 
-        // 情况 1：选中了卡牌 → 放置 / 与布局上的同级同型号直接合成
-        if (game.selectedCard) {
-            const card = game.selectedCard;
-            if (card.type === 'shovel') {
-                if (bf.grid[r][c] === TILE.LOCKED) {
-                    bf.grid[r][c] = TILE.CLEARED;
-                    cell.className = 'zyad-cell cleared';
-                    cell.style.backgroundImage = "url('canvas/kongdi.png')";
-                    cell.dataset.r = r; cell.dataset.c = c; cell.dataset.side = 'left';
-                    bf.useCard(card.idx);
-                    game.selectedCard = null;
-                    bf.renderCards();
+    // 卡牌拖到战场某格是否合法（用于拖拽高亮与落地判定）
+        function cardDropValid(bf, card, r, c) {
+            if (card.type === 'shovel') return bf.grid[r][c] === TILE.LOCKED;
+            if (card.type === 'general') {
+                const existing = bf.getDefenderAt(r, c);
+                if (existing && existing.isFragment) return !!comboFor(card.char, existing.char); // 可叠合成
+                return bf.grid[r][c] === TILE.CLEARED && !existing; // 仅空开垦地
+            }
+            const existing = bf.getDefenderAt(r, c);
+        if (existing) return true; // 同类同级→升级 / 异型异级→换位
+            return bf.grid[r][c] === TILE.CLEARED; // 仅空的开垦地可落
+        }
+
+        // 从武将碎片池随机抽一个（抽后即从池中移除，保证不重复超出数量）
+        function drawGeneral() {
+            const pool = game.generalPool;
+            if (!pool || pool.length === 0) return null;
+            const i = Math.floor(Math.random() * pool.length);
+            return pool.splice(i, 1)[0];
+        }
+
+        // 合成武将：在 (r,c) 放置一个已成形武将（按 weapon 类型攻击，等级 3 强度）
+        function formGeneralAt(bf, r, c, combo) {
+            bf.placeDefender(r, c, combo.weapon, 3);
+            const d = bf.getDefenderAt(r, c);
+            if (d) {
+                d.isGeneral = true;
+                d.generalName = combo.name;
+                d.skill = combo.skill;
+                d.char = null;
+                d.skillCd = d.skillCdMax = SKILL_CD[d.skill] || 0;
+                d.leapCharges = 0;
+            }
+            return d;
+        }
+
+        // 碎片落位/移动后，仅检测"左右相邻"且严格 左=a、右=b 的合成（上下、右左均不合成）
+        function tryCombineAround(bf, r, c) {
+            const d = bf.getDefenderAt(r, c);
+            if (!d || !d.isFragment) return false;
+            // 情形1：当前碎片是左片(a)，右侧是它的右片(b)
+            const right = bf.getDefenderAt(r, c + 1);
+            if (right && right.isFragment) {
+                const combo = comboForExact(d.char, right.char);
+                if (combo) {
+                    bf.removeDefender(right);
+                    bf.removeDefender(d);
+                    formGeneralAt(bf, r, c, combo);
+                    bf.showFloat(c, r, combo.name + ' 现！', 'crit');
+                    return true;
                 }
-            } else {
-                // 已放置的同级同型号守护者 → 直接合成升级
-                if (existingDef && existingDef.type === card.type && existingDef.level === card.level && existingDef.level < 5) {
-                    bf.levelUpDefender(existingDef);
-                    bf.showFloat(c, r, 'Lv' + existingDef.level, 'crit');
-                    bf.useCard(card.idx);
-                    game.selectedCard = null;
-                    bf.renderCards();
-                } else if (bf.grid[r][c] === TILE.CLEARED && !existingDef) {
-                    // 否则放到空白格（按卡牌等级放置）
-                    bf.placeDefender(r, c, card.type, card.level);
-                    bf.useCard(card.idx);
-                    game.selectedCard = null;
-                    bf.renderCards();
+            }
+            // 情形2：当前碎片是右片(b)，左侧是它的左片(a)
+            const left = bf.getDefenderAt(r, c - 1);
+            if (left && left.isFragment) {
+                const combo = comboForExact(left.char, d.char);
+                if (combo) {
+                    bf.removeDefender(d);
+                    bf.removeDefender(left);
+                    formGeneralAt(bf, r, c - 1, combo);
+                    bf.showFloat(c - 1, r, combo.name + ' 现！', 'crit');
+                    return true;
                 }
+            }
+            return false;
+        }
+
+        // 选中的卡牌点击落点部署（合并 / 换位 / 清地）
+    function placeSelectedCard(bf, r, c) {
+        const card = game.selectedCard;
+        if (!card) return;
+        if (card.type === 'shovel') {
+            if (bf.grid[r][c] === TILE.LOCKED) {
+                bf.grid[r][c] = TILE.CLEARED;
+                bf.useCard(card.idx);
+                game.selectedCard = null;
+                bf.renderCards();
             }
             return;
         }
-
-        // 情况 2：选中了守卫 → 合并或移动
-        if (game.selectedDefender) {
-            const sel = game.selectedDefender;
-            if (existingDef && existingDef !== sel.defender) {
-                // 合并
-                if (sel.defender.type === existingDef.type && sel.defender.level === existingDef.level && existingDef.level < 5) {
-                    bf.mergeDefenders(existingDef, sel.defender);
-                    bf.showFloat(c, r, 'Lv' + existingDef.level, 'crit');
+        if (card.type === 'general') {
+            const existingDef = bf.getDefenderAt(r, c);
+            if (existingDef && existingDef.isFragment) {
+                const combo = comboFor(card.char, existingDef.char);
+                if (combo) {
+                    bf.removeDefender(existingDef);
+                    formGeneralAt(bf, r, c, combo);
+                    bf.useCard(card.idx);
+                    game.selectedCard = null;
+                    bf.renderCards();
+                    bf.showFloat(c, r, combo.name + ' 现！', 'crit');
                 }
-            } else if (!existingDef && bf.grid[r][c] === TILE.CLEARED) {
-                // 移动
-                sel.defender.r = r;
-                sel.defender.c = c;
-                const newCell = bf.gridEl.querySelector(`[data-r="${r}"][data-c="${c}"]`);
-                const oldCell = bf.gridEl.querySelector(`[data-r="${sel.r}"][data-c="${sel.c}"]`);
-                if (oldCell) {
-                    oldCell.classList.remove('has-defender');
-                    if (sel.defender.el) oldCell.removeChild(sel.defender.el);
-                }
-                if (newCell) {
-                    newCell.classList.add('has-defender');
-                    if (sel.defender.el) newCell.appendChild(sel.defender.el);
-                }
+            } else if (bf.grid[r][c] === TILE.CLEARED && !existingDef) {
+                bf.placeDefender(r, c, 'general', 1, card.char);
+                bf.useCard(card.idx);
+                game.selectedCard = null;
+                bf.renderCards();
+                tryCombineAround(bf, r, c);
             }
-            // 取消选中
-            if (sel.defender.el) sel.defender.el.classList.remove('selected');
+            return;
+        }
+        const existingDef = bf.getDefenderAt(r, c);
+        if (existingDef && existingDef.type === card.type && existingDef.level === card.level && existingDef.level < 5) {
+            bf.levelUpDefender(existingDef);
+            bf.showFloat(c, r, 'Lv' + existingDef.level, 'crit');
+            bf.useCard(card.idx);
+            game.selectedCard = null;
+            bf.renderCards();
+        } else if (existingDef) {
+            // 已占用且不可合并 → 卡牌上场，被挤下的士兵退回卡牌槽（used=false），等效换位
+            const displaced = { type: existingDef.type, level: existingDef.level, used: false };
+            bf.removeDefender(existingDef);
+            bf.placeDefender(r, c, card.type, card.level);
+            bf.cards[card.idx] = displaced;
+            game.selectedCard = null;
+            bf.renderCards();
+            bf.showFloat(c, r, '换位', 'crit');
+        } else if (bf.grid[r][c] === TILE.CLEARED && !existingDef) {
+            bf.placeDefender(r, c, card.type, card.level);
+            bf.useCard(card.idx);
+            game.selectedCard = null;
+            bf.renderCards();
+        }
+    }
+
+    // ─────────── 拖动移动士兵（左半战场）───────────
+    function onPointerDown(e) {
+        const bf = game.leftBF;
+        if (!bf || !bf.canvas) return;
+        if (e.target !== bf.canvas) return;   // 只响应左战场画布（避免点到右侧敌营误触）
+        const p = canvasPoint(bf.canvas, e);
+        const cell = cellAt(bf, p.x, p.y);
+        if (!cell) { bf.clearDefenderSelectionVisuals(); game.selectedDefender = null; return; }
+        const { r, c } = cell;
+
+        // 情况 1：已选卡牌 → 放置 / 合成（点击即生效）
+        if (game.selectedCard) {
+            placeSelectedCard(bf, r, c);
+            return;
+        }
+
+        // 情况 2：点中已放置士兵 → 起拖
+        const d = bf.getDefenderAt(r, c);
+        if (d) {
+            game.drag = { d, sx: p.x, sy: p.y, mx: p.x, my: p.y, moved: false };
+            d.dragging = true;
             bf.clearDefenderSelectionVisuals();
             game.selectedDefender = null;
+        }
+    }
+
+    function onPointerMove(e) {
+        // 卡牌拖拽上场（优先于士兵拖动判定）
+        if (game.cardDrag && !game.drag) {
+            const bf = game.leftBF;
+            if (bf && bf.canvas) {
+                const p = canvasPoint(bf.canvas, e);
+                game.cardDrag.mx = p.x; game.cardDrag.my = p.y;
+            }
+            const dx = e.clientX - game.cardDrag.startX, dy = e.clientY - game.cardDrag.startY;
+            if (Math.hypot(dx, dy) > 5) game.cardDrag.moved = true;
+            return;
+        }
+        if (!game.drag) return;
+        const bf = game.leftBF;
+        if (!bf || !bf.canvas) return;
+        const p = canvasPoint(bf.canvas, e);
+        game.drag.mx = p.x; game.drag.my = p.y;
+        const dx = p.x - game.drag.sx, dy = p.y - game.drag.sy;
+        if (Math.hypot(dx, dy) > 5) game.drag.moved = true;
+    }
+
+    function onPointerUp() {
+        // 卡牌拖拽上场落地
+        if (game.cardDrag && !game.drag) {
+            const cd = game.cardDrag;
+            game.cardDrag = null;
+            if (!cd.moved) return; // 纯点击 → 交给 click 处理选中
+            const cell = (cd.bf && cd.bf.canvas) ? cellAt(cd.bf, cd.mx, cd.my) : null;
+            if (cell) {
+                game.selectedCard = { type: cd.type, level: cd.level, idx: cd.idx, bf: cd.bf, char: cd.card ? cd.card.char : null };
+                placeSelectedCard(cd.bf, cell.r, cell.c);
+            }
+            game.selectedCard = null;
+            game._justDragged = true; // 抑制随后触发的 click 选中
+            return;
+        }
+        if (!game.drag) return;
+        const drag = game.drag;
+        const d = drag.d;
+        const bf = game.leftBF;
+        game.drag = null;
+        d.dragging = false;
+
+        // 纯点击（未拖动）→ 选中并展示射程/信息
+        if (!drag.moved) {
+            if (game.selectedDefender && game.selectedDefender.defender === d) {
+                game.selectedDefender = null;            // 再次点击取消
+                bf.clearDefenderSelectionVisuals();
+            } else {
+                game.selectedDefender = { defender: d, r: d.r, c: d.c };
+                bf.showDefenderRange(d);
+                bf.showDefenderInfo(d);
+            }
             return;
         }
 
-        // 情况 3：没选中任何东西 → 选中守卫
-        if (existingDef) {
-            game.selectedDefender = { defender: existingDef, r, c };
-            if (existingDef.el) existingDef.el.classList.add('selected');
-            bf.showDefenderRange(existingDef);
-            bf.showDefenderInfo(existingDef);
-        }
-    });
+        // 拖动 → 落点判定
+        const cell = bf.canvas ? cellAt(bf, drag.mx, drag.my) : null;
+        if (!cell) return;                               // 落到棋盘外 → 弹回
+        const { r: r2, c: c2 } = cell;
+        if (r2 === d.r && c2 === d.c) return;            // 原地
 
-    // 点击非信息/非棋盘区域时，自动取消守护者选中
-    document.addEventListener('click', (e) => {
-        if (!game.selectedDefender) return;
-        const t = e.target;
-        // 点在左/右战场棋盘内（含信息提示）不取消
-        if ((game.leftBF.boardEl && game.leftBF.boardEl.contains(t)) ||
-            (game.rightBF.boardEl && game.rightBF.boardEl.contains(t))) return;
-        const sel = game.selectedDefender;
-        if (sel.defender.el) sel.defender.el.classList.remove('selected');
-        game.leftBF.clearDefenderSelectionVisuals();
+        const target = bf.getDefenderAt(r2, c2);
+        if (!target && bf.grid[r2][c2] === TILE.CLEARED) {
+            // 移动到空格
+            d.r = r2; d.c = c2;
+            tryCombineAround(bf, r2, c2);  // 移动后检测相邻合成
+        } else if (d.isFragment && target && target.isFragment) {
+            // 碎片拖到碎片上：可合成则合成，否则弹回
+            const combo = comboFor(d.char, target.char);
+            if (combo) {
+                bf.removeDefender(target);
+                bf.removeDefender(d);
+                formGeneralAt(bf, r2, c2, combo);
+                bf.showFloat(c2, r2, combo.name + ' 现！', 'crit');
+            }
+        } else if (target && target !== d && target.type === d.type && target.level === d.level && target.level < 5) {
+            // 同型同级 → 合成升级（拖入的被消耗）
+            bf.levelUpDefender(target);
+            bf.showFloat(c2, r2, 'Lv' + target.level, 'crit');
+            bf.removeDefender(d);
+        } else if (target && target !== d) {
+            // 异型/异级 → 交换位置
+            const tr = d.r, tc = d.c;
+            d.r = target.r; d.c = target.c;
+            target.r = tr; target.c = tc;
+        }
+        // 其它（荒地 / 敌营 / 阿斗 / 非法）→ 弹回原位
+        bf.clearDefenderSelectionVisuals();
         game.selectedDefender = null;
-    }, true);
+    }
+
+    arenaEl.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
 
     // ─────────── 按钮 ───────────
     recruitBtn?.addEventListener('click', () => {
@@ -1238,6 +1815,9 @@
         game.leftBF.cards = [];
         game.leftBF.renderCards();
 
+        // 武将碎片池：每局重置
+        game.generalPool = GENERAL_POOL.slice();
+
         // AI 初始卡牌
         game.rightBF.refillCards();
 
@@ -1249,10 +1829,14 @@
         game.result = null;
         game.selectedCard = null;
         game.selectedDefender = null;
+        game.drag = null;
         game.aiTimer = 1;
         pauseBtn.textContent = '⏸';
         resultEl.classList.add('hidden');
         updateGrainDisplay();
+        // 先画一帧空棋盘，启动前也能看到布局
+        game.leftBF.drawFrame();
+        game.rightBF.drawFrame();
     }
 
     // ─────────── 启动 ───────────

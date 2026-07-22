@@ -57,6 +57,7 @@ imgDao.onerror = imgDaobing.onerror = () => {
 // --- 2. 核心物理与动画变量 ---
 const pivot = { x: 300, y: 300 }; // 旋转中心点（这也是刀柄右上角定位的核心点）
 const initAngle = 0;    // 初始位置
+const DAO_SCALE = 0.8;  // 刀整体缩小 20%
 
 let currentAngle = initAngle;
 let isAnimating = false;
@@ -130,6 +131,7 @@ function draw() {
         const daoH = imgDao.height;
         ctx.save();
         ctx.translate(pivot.x, pivot.y);
+        ctx.scale(DAO_SCALE, DAO_SCALE);
         ctx.drawImage(imgDao, -daoW / 2 + 18, -daoH + 90, daoW, daoH);
         ctx.restore();
     } else {
@@ -159,8 +161,8 @@ function draw() {
         ctx.shadowColor = '#00f0ff';
 
         ctx.beginPath();
-        // 刀光半径设为 100 像素，完美匹配刀柄旋转扫过的弧度
-        ctx.arc(pivot.x, pivot.y, 100, trailStartAngle, currentAngle, true);
+        // 刀光半径设为 100 像素，完美匹配刀柄旋转扫过的弧度（随整体缩小 20%）
+        ctx.arc(pivot.x, pivot.y, 100 * DAO_SCALE, trailStartAngle, currentAngle, true);
         ctx.stroke();
         ctx.restore();
     }
@@ -171,6 +173,7 @@ function draw() {
     ctx.save();
     ctx.translate(pivot.x, pivot.y); // 将画布原点移到旋转中心
     ctx.rotate(currentAngle);        // 绕该点进行旋转
+    ctx.scale(DAO_SCALE, DAO_SCALE); // 整体缩小 20%
 
     if (!useFallback) {
         const bingW = 55;   // 刀柄宽度
