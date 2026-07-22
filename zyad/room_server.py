@@ -629,28 +629,7 @@ async def main():
 
 
 if __name__ == "__main__":
-    # 兼容 Python 3.6 (无 asyncio.run) 和 3.7+
     try:
-        run_asyncio = getattr(asyncio, "run", None)
-    except Exception:
-        run_asyncio = None
-    if run_asyncio is None:
-        # Python 3.6 fallback
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(main())
-        except KeyboardInterrupt:
-            print("\n房间服务器关闭", file=sys.stderr)
-        finally:
-            try:
-                loop.run_until_complete(loop.shutdown_asyncgens())
-            except Exception:
-                pass
-            loop.close()
-    else:
-        # Python 3.7+
-        try:
-            run_asyncio(main())
-        except KeyboardInterrupt:
-            print("\n房间服务器关闭", file=sys.stderr)
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n房间服务器关闭", file=sys.stderr)
