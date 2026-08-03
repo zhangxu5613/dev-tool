@@ -125,9 +125,13 @@
             placeholders.push({ key, value: m });
             return key;
         };
-        const parts = text.split(/(```[\s\S]*?```|`[^`\n]*`)/g);
+        // 保护代码块、行内代码、图片 ![alt](url) 和链接 [text](url)
+        // 避免其内部的 $ 被误判为行内公式，导致占位符进入 alt/href 被 HTML 转义后无法还原
+        const parts = text.split(/(```[\s\S]*?```|`[^`\n]*`|!\[[^\]]*\]\([^)]*\)|\[[^\]]*\]\([^)]*\))/g);
         const out = parts.map(part => {
             if (part.startsWith('```') || part.startsWith('`')) return part;
+            // 图片或链接：整段保护，不处理内部的 $
+            if (/^!\[[^\]]*\]\([^)]*\)$/.test(part) || /^\[[^\]]*\]\([^)]*\)$/.test(part)) return part;
             let p = part.replace(/\$\$[\s\S]*?\$\$/g, m => store(m));
             p = p.replace(/(^|[^\\])\$([^$\n]+?)\$/g, (m, p1) => p1 + store(m.slice(p1.length)));
             return p;
@@ -184,6 +188,21 @@
         if (placeholders.length) html = restoreMath(html, placeholders);
         preview.innerHTML = html;
         styleTaskLists();
+        // 图片处理：加 referrerpolicy 绕过防盗链 + 加载失败提示
+        preview.querySelectorAll('img').forEach(img => {
+            // no-referrer 让浏览器不发送 Referer，绕过腾讯/微博等图床的防盗链
+            img.setAttribute('referrerpolicy', 'no-referrer');
+            if (img.dataset.mdBound) return;
+            img.dataset.mdBound = '1';
+            img.addEventListener('error', () => {
+                img.setAttribute('data-md-error', '1');
+                img.style.outline = '2px dashed #e74c3c';
+                img.style.minHeight = '40px';
+                img.style.minWidth = '120px';
+                img.style.display = 'inline-block';
+                img.title = '图片加载失败：' + img.src;
+            });
+        });
         if (typeof renderMathInElement !== 'undefined') {
             try {
                 renderMathInElement(preview, {
