@@ -77,6 +77,12 @@ select:focus { border-color: #667eea; }
 .btn-sub:active { background: rgba(255,255,255,.32); }
 .btn-danger { border-color: rgba(255,180,180,.7); color: #ffe2e2; }
 
+.stat-line {
+  text-align: center; color: rgba(255,255,255,.9);
+  font-size: 13px; margin: 4px 0 10px;
+}
+.stat-line span { font-weight: 700; color: #ffd86f; }
+
 /* 答题页 */
 .quiz-top { margin-bottom: 12px; }
 .progress-wrap {

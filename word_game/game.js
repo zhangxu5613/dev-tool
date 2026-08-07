@@ -84,6 +84,28 @@ function updateWrongCount() {
   $("wrong-count").textContent = Object.keys(loadWrongBook()).length;
 }
 
+/* ================= 已掌握记录（localStorage） ================= */
+const MASTER_KEY = "word_game_master_book_v1";
+function loadMasterBook() { try { return JSON.parse(localStorage.getItem(MASTER_KEY)) || {}; } catch (e) { return {}; } }
+function saveMasterBook(b) { localStorage.setItem(MASTER_KEY, JSON.stringify(b)); }
+function addMaster(word, type) {
+  const b = loadMasterBook();
+  b[word + "||" + type] = { w: word, t: type, ts: Date.now() };
+  saveMasterBook(b);
+}
+function removeMaster(word, type) {
+  const b = loadMasterBook();
+  delete b[word + "||" + type];
+  saveMasterBook(b);
+}
+function isMastered(word, type) {
+  return !!loadMasterBook()[word + "||" + type];
+}
+function updateMasterCount() {
+  const words = new Set(Object.values(loadMasterBook()).map(e => e.w));
+  $("master-count").textContent = words.size;
+}
+
 /* ================= 出题引擎 ================= */
 const TYPE_NAMES = { spell: "✏️ 拼写题", trans: "🔄 翻译题", tense: "⏰ 时态题" };
 let wordPool = [];   // 当前范围内的词
@@ -130,10 +152,13 @@ function makeQuestion(type, item) {
     ];
     const kind = pick(kinds);
     q.prompt = "动词 <span class='blank'>" + item.w + "</span> 的" + kind.name + "是？";
-    q.extra = "「" + item.sm + "」" + (f.irregular ? "　⚠️ 注意：这是不规则变化！" : "");
+    const vMeaning = item.vm || (item.sm.match(/^(v|vt|vi)\./) ? item.sm : "作动词时的变形");
+    q.extra = "「" + vMeaning + "」" + (f.irregular ? "　⚠️ 注意：这是不规则变化！" : "");
     q.answer = kind.ans;
     q.choices = makeChoices(kind.ans, fakeTenses(item.w, f, kind.k));
     q.hint = f.irregular ? "不规则动词，要特殊记忆哦" : "按规则变形即可";
+    // 时态题只展示包含动词变形的例句，避免出现名词用法的例句
+    q.feedbackEx = pickVerbExample(item, f);
   }
   return q;
 }
@@ -141,6 +166,19 @@ function makeQuestion(type, item) {
 function maskWord(sentence, word) {
   const re = new RegExp("\\b" + word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\w*\\b", "gi");
   return sentence.replace(re, "____");
+}
+
+/* 从例句中挑选包含动词变形（过去式/分词/三单）的句子，找不到则不展示例句 */
+function pickVerbExample(item, f) {
+  const forms = [];
+  [f.past, f.ing, f.third].forEach(x => { if (x) forms.push(...x.split("/")); });
+  for (const [en, cn] of item.ex) {
+    for (const fm of forms) {
+      const re = new RegExp("\\b" + fm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i");
+      if (re.test(en)) return [en, cn];
+    }
+  }
+  return null;
 }
 
 /* 生成易混淆的错误拼写（干扰项） */
@@ -239,6 +277,17 @@ function newSession(fromWrongBook) {
     }
     const usedWords = new Set(queue.map(q => q.word));
     let guard = 0;
+    // 第一轮：只抽"未掌握"的词
+    while (queue.length < count && guard++ < count * 30) {
+      const m = pick(usable);
+      const item = m === "tense" ? pick(verbPool) : pick(wordPool);
+      if (!item || usedWords.has(item.w)) continue;
+      if (isMastered(item.w, m)) continue;
+      usedWords.add(item.w);
+      queue.push(makeQuestion(m, item));
+    }
+    // 第二轮兜底：生词不够时，回收已掌握的词凑数
+    guard = 0;
     while (queue.length < count && guard++ < count * 30) {
       const m = pick(usable);
       const item = m === "tense" ? pick(verbPool) : pick(wordPool);
@@ -303,14 +352,19 @@ function submitAnswer(val, btnEl) {
     stats.streak++;
     stats.maxStreak = Math.max(stats.maxStreak, stats.streak);
     stats.score += 10 + Math.min(stats.streak - 1, 5) * 2;
+    const fbEx = current.type === "tense" ? current.feedbackEx : (current.item.ex.length ? current.item.ex[0] : null);
     $("feedback").innerHTML = pick(["🎉 太棒了！", "✅ 答对啦！", "👍 真厉害！", "🌟 完全正确！"]) +
-      (current.item.ex.length ? "<span class='detail'>" + current.item.ex[0][0] + "　" + current.item.ex[0][1] + "</span>" : "");
+      (fbEx ? "<span class='detail'>" + fbEx[0] + "　" + fbEx[1] + "</span>" : "");
     if (current.retry || current.fromBook) removeWrong(current.word, current.type);
+    // 一次答对（非错题重现）即记为已掌握，后续出题不再优先出现
+    if (!current.retry) addMaster(current.word, current.type);
   } else {
     stats.wrong++;
     stats.streak = 0;
+    removeMaster(current.word, current.type);
+    const wrongMeaning = current.type === "tense" ? (current.item.vm || current.item.sm) : current.item.sm;
     $("feedback").innerHTML = "❌ 正确答案：<u>" + current.answer + "</u>" +
-      "<span class='detail'>" + current.word + " —— " + current.item.sm + "</span>";
+      "<span class='detail'>" + current.word + " —— " + wrongMeaning + "</span>";
     addWrong(current.word, current.type);
     stats.wrongList.push({ w: current.word, t: current.type, ans: current.answer });
     // 错题稍后重现：插回队列靠后位置（每题最多重现2次）
@@ -335,6 +389,7 @@ function submitAnswer(val, btnEl) {
   $("btn-next").style.display = "block";
   $("btn-next").focus();
   updateWrongCount();
+  updateMasterCount();
 }
 
 function endSession() {
@@ -374,11 +429,15 @@ function init() {
     sel.appendChild(o);
   });
   updateWrongCount();
+  updateMasterCount();
 
   $("btn-start").onclick = () => newSession(false);
   $("btn-review").onclick = () => newSession(true);
   $("btn-clear-wrong").onclick = () => {
     if (confirm("确定清空错题本吗？")) { saveWrongBook({}); updateWrongCount(); }
+  };
+  $("btn-clear-master").onclick = () => {
+    if (confirm("确定重置学习进度吗？所有单词将重新进入出题范围。")) { saveMasterBook({}); updateMasterCount(); }
   };
   document.addEventListener("keydown", e => {
     if (e.key === "Enter" && answered && $("screen-quiz").classList.contains("active")) $("btn-next").click();
