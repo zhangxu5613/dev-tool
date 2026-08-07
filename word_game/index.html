@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小学英语单词闯关</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- 开始设置页 -->
+  <div id="screen-start" class="screen active">
+    <h1>🎮 小学英语单词闯关</h1>
+    <p class="subtitle">拼写 · 翻译 · 时态 —— 错题会自动再现，直到你掌握为止！</p>
+
+    <div class="card">
+      <h3>① 选择题型</h3>
+      <div class="mode-row">
+        <label class="chk"><input type="checkbox" id="mode-spell" checked> ✏️ 单词拼写</label>
+        <label class="chk"><input type="checkbox" id="mode-trans" checked> 🔄 中英翻译</label>
+        <label class="chk"><input type="checkbox" id="mode-tense" checked> ⏰ 动词时态</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>② 选择词库范围</h3>
+      <select id="sel-category"><option value="">全部词库</option></select>
+    </div>
+
+    <div class="card">
+      <h3>③ 本轮题目数量</h3>
+      <div class="mode-row">
+        <label class="chk"><input type="radio" name="qcount" value="10" checked> 10 题</label>
+        <label class="chk"><input type="radio" name="qcount" value="20"> 20 题</label>
+        <label class="chk"><input type="radio" name="qcount" value="30"> 30 题</label>
+      </div>
+    </div>
+
+    <button class="btn-main" id="btn-start">开始闯关 🚀</button>
+    <button class="btn-sub" id="btn-review">📕 错题本复习 (<span id="wrong-count">0</span>)</button>
+    <button class="btn-sub btn-danger" id="btn-clear-wrong">清空错题本</button>
+  </div>
+
+  <!-- 答题页 -->
+  <div id="screen-quiz" class="screen">
+    <div class="quiz-top">
+      <div class="progress-wrap"><div id="progress-bar"></div></div>
+      <div class="quiz-stats">
+        <span id="quiz-progress">1 / 10</span>
+        <span id="quiz-score">⭐ 0</span>
+        <span id="quiz-streak">🔥 0</span>
+      </div>
+    </div>
+
+    <div class="card question-card">
+      <div id="q-type-badge" class="badge">拼写题</div>
+      <div id="q-retry-badge" class="badge badge-retry" style="display:none">🔁 错题重现</div>
+      <div id="q-prompt" class="q-prompt"></div>
+      <div id="q-extra" class="q-extra"></div>
+
+      <div id="answer-choices" class="choices"></div>
+      <button class="btn-hint" id="btn-hint">💡 提示一下</button>
+    </div>
+
+    <div id="feedback" class="feedback"></div>
+    <button class="btn-main" id="btn-next" style="display:none">下一题 ➜</button>
+    <button class="btn-sub" id="btn-quit">结束本轮</button>
+  </div>
+
+  <!-- 结算页 -->
+  <div id="screen-result" class="screen">
+    <h1 id="result-title">🎉 闯关完成！</h1>
+    <div class="card result-card">
+      <div class="result-row"><span>得分</span><b id="r-score">0</b></div>
+      <div class="result-row"><span>答对</span><b id="r-correct">0</b></div>
+      <div class="result-row"><span>答错</span><b id="r-wrong">0</b></div>
+      <div class="result-row"><span>正确率</span><b id="r-rate">0%</b></div>
+      <div class="result-row"><span>最高连击</span><b id="r-streak">0</b></div>
+    </div>
+    <div class="card" id="r-wrong-card" style="display:none">
+      <h3>📕 本轮错题（已加入错题本）</h3>
+      <ul id="r-wrong-list" class="wrong-list"></ul>
+    </div>
+    <button class="btn-main" id="btn-again">再来一轮 🔄</button>
+    <button class="btn-sub" id="btn-home">返回首页</button>
+  </div>
+
+</div>
+<script src="words.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
