@@ -1837,15 +1837,21 @@ textarea::-webkit-scrollbar-track,
     .diff-inputs { grid-template-columns: 1fr; }
 }
 
-.diff-editor {
-    position: relative;
+/* 可编辑 + 结果展示一体的输入框 */
+.plain-area.diff-editbox {
     min-height: 360px;
+    max-height: 640px;
+    overflow: auto;
+    resize: vertical;
+    white-space: pre-wrap;
+    word-break: break-all;
 }
-
-.diff-textarea {
-    width: 100%;
-    min-height: 360px !important;
-    height: 100%;
+.plain-area.diff-editbox:focus { border-color: var(--primary); }
+.plain-area.diff-editbox:empty::before {
+    content: attr(data-placeholder);
+    color: var(--text-muted);
+    opacity: 0.6;
+    pointer-events: none;
 }
 
 .diff-preview {

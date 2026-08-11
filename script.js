@@ -1934,7 +1934,7 @@
         strfmtStatus.style.color = 'var(--success)';
     }
 
-    function doStrReverse() {
+function doStrReverse() {
         let s = strfmtRight.value;
         if (!s) { strfmtLeft.value = ''; strfmtStatus.textContent = '就绪'; return; }
 
@@ -1949,8 +1949,27 @@
         strfmtStatus.style.color = 'var(--success)';
     }
 
+    // 去转义：去除反斜杠（\' → '、\" → "、\\ → \ 等），不转换为换行/制表符
+    function doStrUnescape() {
+        let s = strfmtLeft.value;
+        if (!s) { strfmtRight.value = ''; strfmtStatus.textContent = '就绪'; return; }
+
+        // 先将 \\ 还原为 \（避免后续把 \\' 误判为 \'）
+        s = s.replace(/\\\\/g, '\u0000'); // 临时占位
+        // 去除常见转义字符前的反斜杠
+        s = s.replace(/\\(['"`\\/bfnrtv])/g, '$1');
+        s = s.replace(/\\(.)/g, '$1');    // 兜底：其余反斜杠+字符 去反斜杠
+        s = s.replace(/\u0000/g, '\\');   // 还原被占位的 \\ 为一个 \
+
+        strfmtRight.value = s;
+        const lineCount = s.split('\n').length;
+        strfmtStatus.textContent = `已去转义，${lineCount} 行 · ${s.length} 字符`;
+        strfmtStatus.style.color = 'var(--success)';
+    }
+
     document.getElementById('strfmtFormat').addEventListener('click', doStrFormat);
     document.getElementById('strfmtReverse').addEventListener('click', doStrReverse);
+    document.getElementById('strfmtUnescape').addEventListener('click', doStrUnescape);
     document.getElementById('strfmtClear').addEventListener('click', () => {
         strfmtLeft.value = '';
         strfmtRight.value = '';
@@ -2710,8 +2729,40 @@
     // ================================================================
     const diffLeftEl = document.getElementById('diffLeft');
     const diffRightEl = document.getElementById('diffRight');
-    const diffLeftPreview = document.getElementById('diffLeftPreview');
-    const diffRightPreview = document.getElementById('diffRightPreview');
+    // 输入框本身就是结果展示区（contenteditable），二者为同一元素
+    const diffLeftPreview = diffLeftEl;
+    const diffRightPreview = diffRightEl;
+
+    // 从 contenteditable 中提取纯文本：跳过 pad 占位行、还原 &nbsp; 空行
+    function getDiffText(el) {
+        if (!el.querySelector('.dline')) {
+            return (el.innerText || '').replace(/\n$/, '');
+        }
+        const lines = [];
+        el.childNodes.forEach(node => {
+            if (node.nodeType === 1 && node.classList && node.classList.contains('dline')) {
+                let t = node.textContent;
+                if (t === '\u00a0') t = '';
+                if (node.classList.contains('pad')) {
+                    // pad 占位行：无真实内容则跳过；若用户在其中输入了内容则保留
+                    t = t.replace(/\u00a0/g, '');
+                    if (!t) return;
+                }
+                lines.push(...t.split('\n'));
+            } else {
+                const t = node.textContent;
+                if (t) lines.push(...t.split('\n'));
+            }
+        });
+        return lines.join('\n');
+    }
+    // 让 div 兼容 textarea 的 .value 读写（复制按钮等通用逻辑可直接复用）
+    [diffLeftEl, diffRightEl].forEach(el => {
+        Object.defineProperty(el, 'value', {
+            get() { return getDiffText(el); },
+            set(v) { el.textContent = v; }
+        });
+    });
     const diffStatus = document.getElementById('diffStatus');
     const diffSummary = document.getElementById('diffSummary');
     const diffJsonOpts = document.getElementById('diffJsonOpts');
@@ -2905,7 +2956,8 @@
         const indentChar = '  ';
         return lines.map(l => {
             const text = indentChar.repeat(l.indent) + l.text;
-            return `<div class="dline ${l.type}">${diffHighlight(text) || '&nbsp;'}</div>`;
+            const body = l.html !== undefined ? (l.html || '&nbsp;') : (diffHighlight(text) || '&nbsp;');
+            return `<div class="dline ${l.type}">${body}</div>`;
         }).join('');
     }
 
@@ -2914,50 +2966,68 @@
         return lines.map(l => indentChar.repeat(l.indent) + l.text).join('\n');
     }
 
-    function showPreview(side) {
-        const editor = document.querySelector(`.diff-editor[data-side="${side}"]`);
-        if (!editor) return;
-        const ta = editor.querySelector('textarea');
-        const pv = editor.querySelector('.diff-preview');
-        ta.style.display = 'none';
-        pv.hidden = false;
-    }
-    function hidePreview(side) {
-        const editor = document.querySelector(`.diff-editor[data-side="${side}"]`);
-        if (!editor) return;
-        const ta = editor.querySelector('textarea');
-        const pv = editor.querySelector('.diff-preview');
-        ta.style.display = '';
-        pv.hidden = true;
-    }
-
-    // 进入编辑模式：恢复原始输入并把两侧预览切回 textarea
-    function enterDiffEdit(focusSide) {
-        hidePreview('left');
-        hidePreview('right');
-        if (_diffLeftRaw) diffLeftEl.value = _diffLeftRaw;
-        if (_diffRightRaw) diffRightEl.value = _diffRightRaw;
-        const target = focusSide === 'right' ? diffRightEl : diffLeftEl;
-        target.focus();
-        // 光标移到末尾，便于继续输入
-        const len = target.value.length;
-        try { target.setSelectionRange(len, len); } catch (_) {}
-        document.getElementById('diffEdit').style.display = 'none';
-        _diffInEdit = true;  // 标记进入编辑模式，input 时不自动对比
+    // ---- 光标保存/恢复（以"提取文本的行/列"为坐标） ----
+    function saveCaret(el) {
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return null;
+        const range = sel.getRangeAt(0);
+        if (!el.contains(range.startContainer)) return null;
+        if (!el.querySelector('.dline')) {
+            // 纯文本状态：按全文偏移换算行/列
+            const r = document.createRange();
+            r.selectNodeContents(el);
+            r.setEnd(range.startContainer, range.startOffset);
+            const before = r.toString().split('\n');
+            return { line: before.length - 1, col: before[before.length - 1].length };
+        }
+        // 渲染状态：定位所在 dline，行号按提取文本计（跳过 pad 行）
+        let node = range.startContainer;
+        while (node !== el && node.parentNode !== el) node = node.parentNode;
+        if (node === el) return { line: 0, col: 0 };
+        let line = 0;
+        for (let ch = el.firstChild; ch && ch !== node; ch = ch.nextSibling) {
+            if (ch.nodeType === 1 && ch.classList.contains('dline') && !ch.classList.contains('pad')) line++;
+        }
+        const r = document.createRange();
+        r.selectNodeContents(node);
+        r.setEnd(range.startContainer, range.startOffset);
+        return { line, col: r.toString().length };
     }
 
-    // "编辑"按钮：回到编辑模式（恢复原始输入）
-    document.getElementById('diffEdit').addEventListener('click', () => enterDiffEdit('left'));
+    function restoreCaret(el, caret) {
+        if (!caret) return;
+        let target = null;
+        let line = 0;
+        for (let ch = el.firstChild; ch; ch = ch.nextSibling) {
+            if (ch.nodeType === 1 && ch.classList.contains('dline') && !ch.classList.contains('pad')) {
+                if (line === caret.line) { target = ch; break; }
+                target = ch;  // 记录最后一个有效行，行号超界时落在末行
+                line++;
+            }
+        }
+        if (!target) return;
+        // 在 target 内按列偏移定位文本节点
+        let remain = caret.col;
+        const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
+        let tn = null, offset = 0;
+        while (walker.nextNode()) {
+            tn = walker.currentNode;
+            const t = tn.textContent === '\u00a0' ? '' : tn.textContent;
+            if (remain <= t.length) { offset = Math.min(remain, tn.textContent.length); remain = -1; break; }
+            remain -= t.length;
+            offset = tn.textContent.length;
+        }
+        const sel = window.getSelection();
+        const r = document.createRange();
+        if (tn) r.setStart(tn, offset);
+        else r.setStart(target, 0);
+        r.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(r);
+    }
 
-    // 双击预览区：直接进入编辑模式（编辑该侧）
-    diffLeftPreview.addEventListener('dblclick', () => enterDiffEdit('left'));
-    diffRightPreview.addEventListener('dblclick', () => enterDiffEdit('right'));
-    diffLeftPreview.title = '双击可回到编辑模式';
-    diffRightPreview.title = '双击可回到编辑模式';
-
-    // 用户编辑 textarea 时，隐藏预览层并防抖触发自动对比
+    // 输入框始终可编辑，输入时防抖自动触发对比
     let _diffAutoTimer = null;
-    let _diffInEdit = false;  // 是否处于编辑模式（双击进入），此时不自动对比
     function detectJsonMode() {
         const lv = diffLeftEl.value.trim();
         const rv = diffRightEl.value.trim();
@@ -2969,6 +3039,30 @@
         diffJsonOpts.style.display = bothJson ? '' : 'none';
         return bothJson;
     }
+    // 把渲染后的 diff 结果还原为纯文本（保持可编辑内容不丢失）
+    function clearRender(el) {
+        if (!el.querySelector('.dline')) return;
+        const caret = el === document.activeElement ? saveCaret(el) : null;
+        const v = getDiffText(el);
+        el.textContent = v;
+        el.classList.remove('has-diff');
+        if (caret) {
+            // 纯文本状态下按行/列恢复
+            const linesArr = v.split('\n');
+            let pos = 0;
+            for (let i = 0; i < caret.line && i < linesArr.length; i++) pos += linesArr[i].length + 1;
+            pos += Math.min(caret.col, (linesArr[caret.line] || '').length);
+            const sel = window.getSelection();
+            const r = document.createRange();
+            const tn = el.firstChild;
+            if (tn) r.setStart(tn, Math.min(pos, tn.textContent.length));
+            else r.setStart(el, 0);
+            r.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(r);
+        }
+    }
+
     function scheduleAutoDiff() {
         if (_diffAutoTimer) clearTimeout(_diffAutoTimer);
         _diffAutoTimer = setTimeout(() => {
@@ -2976,12 +3070,12 @@
             const l = diffLeftEl.value.trim();
             const r = diffRightEl.value.trim();
             if (!l || !r) {
-                // 任一侧为空时不自动对比
-                hidePreview('left');
-                hidePreview('right');
+                // 任一侧为空时不自动对比，并撤掉已有的高亮渲染
+                clearRender(diffLeftEl);
+                clearRender(diffRightEl);
                 diffSummary.hidden = true;
                 document.getElementById('diffUnified').hidden = true;
-                document.getElementById('diffEdit').style.display = 'none';
+                document.getElementById('diffNav').style.display = 'none';
                 diffJsonOpts.style.display = 'none';
                 diffStatus.textContent = (!l && !r) ? '就绪' : '请先在两侧都输入内容';
                 diffStatus.style.color = '';
@@ -2991,12 +3085,8 @@
             runDiff();
         }, 300);
     }
-    diffLeftEl.addEventListener('input', () => { hidePreview('left'); if (!_diffInEdit) scheduleAutoDiff(); });
-    diffRightEl.addEventListener('input', () => { hidePreview('right'); if (!_diffInEdit) scheduleAutoDiff(); });
-
-    // 编辑模式下，失焦时退出编辑并触发对比
-    diffLeftEl.addEventListener('blur', () => { if (_diffInEdit) { _diffInEdit = false; runDiff(); } });
-    diffRightEl.addEventListener('blur', () => { if (_diffInEdit) { _diffInEdit = false; runDiff(); } });
+    diffLeftEl.addEventListener('input', scheduleAutoDiff);
+    diffRightEl.addEventListener('input', scheduleAutoDiff);
 
     // ---- 文本 Diff（行级 LCS + 字符级 LCS） ----
     function charDiff(a, b) {
@@ -3155,25 +3245,10 @@
             }
         }
 
-        // 裁剪上下文：只保留差异行 ±3 行（基于合并后的结果）
-        // 但若两边完全一致（无 add/del），保留全部行，避免用户误以为数据丢失
-        const CTX = 3;
-        const hasDiff = mergedL.some(l => l.type !== 'same' && l.type !== 'pad')
-            || mergedR.some(r => r.type !== 'same' && r.type !== 'pad');
-        const keep = new Set();
-        if (hasDiff) {
-            for (let k = 0; k < mergedL.length; k++) {
-                if (mergedL[k].type !== 'same') {
-                    for (let t = Math.max(0, k - CTX); t <= Math.min(mergedL.length - 1, k + CTX); t++) keep.add(t);
-                }
-            }
-        } else {
-            for (let k = 0; k < mergedL.length; k++) keep.add(k);
-        }
+        // 结果直接渲染回输入框，必须保留全部行（裁剪会丢失用户内容）
         const L = [], R = [];
         stats = { add: 0, del: 0, same: 0 };
         for (let k = 0; k < mergedL.length; k++) {
-            if (!keep.has(k)) continue;
             L.push(mergedL[k]);
             R.push(mergedR[k]);
             if (mergedL[k].type === 'del') stats.del++;
@@ -3200,38 +3275,46 @@
         const isJsonMode = detectJsonMode();
 
         // 清空所有结果区
-        hidePreview('left');
-        hidePreview('right');
         diffSummary.hidden = true;
         document.getElementById('diffNav').style.display = 'none';
-        document.getElementById('diffEdit').style.display = 'none';
         document.getElementById('diffUnified').hidden = true;
         _diffNavItems = [];
         _diffNavIndex = -1;
 
-        if (!lraw && !rraw) {
+        if (!lraw || !rraw) {
+            clearRender(diffLeftEl);
+            clearRender(diffRightEl);
             diffStatus.textContent = isJsonMode ? '请在左右两侧粘贴 JSON' : '请在左右两侧粘贴文本';
             diffStatus.style.color = '';
             return;
         }
 
+        // 保存当前聚焦侧的光标位置，渲染后恢复，保证连续输入不中断
+        const focusEl = document.activeElement === diffLeftEl ? diffLeftEl
+            : document.activeElement === diffRightEl ? diffRightEl : null;
+        const caret = focusEl ? saveCaret(focusEl) : null;
+
+        function renderInPlace(leftHTML, rightHTML) {
+            diffLeftEl.innerHTML = leftHTML || '<div class="dline">&nbsp;</div>';
+            diffRightEl.innerHTML = rightHTML || '<div class="dline">&nbsp;</div>';
+            diffLeftEl.classList.add('has-diff');
+            diffRightEl.classList.add('has-diff');
+            if (focusEl && caret) restoreCaret(focusEl, caret);
+        }
+
         if (!isJsonMode) {
             // ---- 文本 Diff 模式：双栏并排 ----
-            const { leftLines, rightLines, stats } = textDiff(lraw + '\n', rraw + '\n');
+            const { leftLines, rightLines, stats } = textDiff(lraw, rraw);
 
-            diffLeftPreview.className = 'diff-preview side-left';
-            diffRightPreview.className = 'diff-preview side-right';
-            diffLeftPreview.innerHTML = textLineToHTML(leftLines) || '<div class="dline">&nbsp;</div>';
-            diffRightPreview.innerHTML = textLineToHTML(rightLines) || '<div class="dline">&nbsp;</div>';
-            showPreview('left');
-            showPreview('right');
-            document.getElementById('diffEdit').style.display = '';
+            renderInPlace(textLineToHTML(leftLines), textLineToHTML(rightLines));
 
             document.getElementById('diffAddCnt').textContent = stats.add;
             document.getElementById('diffDelCnt').textContent = stats.del;
             document.getElementById('diffModCnt').textContent = '0';
             document.getElementById('diffSameCnt').textContent = stats.same;
             diffSummary.hidden = false;
+
+            collectDiffNavItems();
 
             const totalDiff = stats.add + stats.del;
             if (totalDiff === 0) {
@@ -3267,13 +3350,21 @@
 
         const { leftLines, rightLines, stats } = diffBothSides(a, b);
 
-        diffLeftPreview.className = 'diff-preview side-left';
-        diffRightPreview.className = 'diff-preview side-right';
-        diffLeftPreview.innerHTML = linesToHTML(leftLines) || '<div class="dline">&nbsp;</div>';
-        diffRightPreview.innerHTML = linesToHTML(rightLines) || '<div class="dline">&nbsp;</div>';
-        showPreview('left');
-        showPreview('right');
-        document.getElementById('diffEdit').style.display = '';
+        // mod 行成对做字符级对比，细化到单个字符
+        const indentChar = '  ';
+        for (let i = 0; i < leftLines.length; i++) {
+            if (leftLines[i].type === 'mod' && rightLines[i] && rightLines[i].type === 'mod') {
+                const lt = indentChar.repeat(leftLines[i].indent) + leftLines[i].text;
+                const rt = indentChar.repeat(rightLines[i].indent) + rightLines[i].text;
+                const d = charDiff(lt, rt);
+                leftLines[i].html = d.htmlA;
+                rightLines[i].html = d.htmlB;
+            }
+        }
+
+        diffLeftPreview.className = 'plain-area diff-preview diff-editbox side-left';
+        diffRightPreview.className = 'plain-area diff-preview diff-editbox side-right';
+        renderInPlace(linesToHTML(leftLines), linesToHTML(rightLines));
 
         document.getElementById('diffAddCnt').textContent = stats.add;
         document.getElementById('diffDelCnt').textContent = stats.del;
@@ -3295,16 +3386,16 @@
 
     document.getElementById('diffRun').addEventListener('click', runDiff);
     document.getElementById('diffSwap').addEventListener('click', () => {
-        hidePreview('left'); hidePreview('right');
-        const tmp = _diffLeftRaw || diffLeftEl.value;
-        diffLeftEl.value = _diffRightRaw || diffRightEl.value;
+        const tmp = diffLeftEl.value;
+        diffLeftEl.value = diffRightEl.value;
         diffRightEl.value = tmp;
         runDiff();
     });
     document.getElementById('diffClear').addEventListener('click', () => {
-        hidePreview('left'); hidePreview('right');
         diffLeftEl.value = '';
         diffRightEl.value = '';
+        diffLeftEl.classList.remove('has-diff');
+        diffRightEl.classList.remove('has-diff');
         diffSummary.hidden = true;
         document.getElementById('diffUnified').hidden = true;
         diffStatus.textContent = '就绪';
@@ -3314,7 +3405,6 @@
         _diffLeftRaw = '';
         _diffRightRaw = '';
         document.getElementById('diffNav').style.display = 'none';
-        document.getElementById('diffEdit').style.display = 'none';
         updateDiffNavIndex();
     });
 

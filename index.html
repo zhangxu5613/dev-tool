@@ -139,7 +139,6 @@
                         <button class="btn btn-primary" id="diffRun">对比</button>
                         <button class="btn" id="diffSwap">交换左右</button>
                         <button class="btn btn-danger" id="diffClear">清空</button>
-                        <button class="btn" id="diffEdit" style="display:none">编辑</button>
                     </span>
                     <span class="status-line" id="diffStatus">就绪</span>
                 </div>
@@ -150,20 +149,14 @@
                             <span class="pane-title">左侧内容（原始）</span>
                             <button class="mini-btn" data-copy="#diffLeft">复制</button>
                         </div>
-                        <div class="diff-editor" data-side="left">
-                            <textarea id="diffLeft" class="plain-area diff-textarea" spellcheck="false" placeholder='粘贴文本或 JSON，如 {"name":"张三","age":18}'></textarea>
-                            <div id="diffLeftPreview" class="diff-preview" hidden></div>
-                        </div>
+                        <div id="diffLeft" class="plain-area diff-preview diff-editbox side-left" contenteditable="plaintext-only" spellcheck="false" data-placeholder='粘贴文本或 JSON，如 {"name":"张三","age":18}'></div>
                     </div>
                     <div class="editor-pane">
                         <div class="pane-header">
                             <span class="pane-title">右侧内容（修改后）</span>
                             <button class="mini-btn" data-copy="#diffRight">复制</button>
                         </div>
-                        <div class="diff-editor" data-side="right">
-                            <textarea id="diffRight" class="plain-area diff-textarea" spellcheck="false" placeholder='粘贴文本或 JSON，如 {"name":"张三","age":20}'></textarea>
-                            <div id="diffRightPreview" class="diff-preview" hidden></div>
-                        </div>
+                        <div id="diffRight" class="plain-area diff-preview diff-editbox side-right" contenteditable="plaintext-only" spellcheck="false" data-placeholder='粘贴文本或 JSON，如 {"name":"张三","age":20}'></div>
                     </div>
                 </div>
 
@@ -203,8 +196,9 @@
                         <textarea id="strfmtLeft" class="plain-area" style="min-height:560px" spellcheck="false" placeholder='粘贴包含 \n \t 等转义字符的文本'></textarea>
                     </div>
                     <div class="dual-actions">
-                        <button class="btn btn-primary" id="strfmtFormat">格式化 →</button>
+<button class="btn btn-primary" id="strfmtFormat">格式化 →</button>
                         <button class="btn" id="strfmtReverse">逆向 →</button>
+                        <button class="btn" id="strfmtUnescape">去转义</button>
                         <button class="btn" id="strfmtJoin">拼接 →</button>
                         <button class="btn" id="strfmtSplit">切割 →</button>
                         <button class="btn btn-danger" id="strfmtClear">清空</button>
