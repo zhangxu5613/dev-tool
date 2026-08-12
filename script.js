@@ -2727,11 +2727,35 @@ function doStrReverse() {
     // ================================================================
     // ===================== JSON Diff =====================
     // ================================================================
-    const diffLeftEl = document.getElementById('diffLeft');
+const diffLeftEl = document.getElementById('diffLeft');
     const diffRightEl = document.getElementById('diffRight');
     // 输入框本身就是结果展示区（contenteditable），二者为同一元素
     const diffLeftPreview = diffLeftEl;
     const diffRightPreview = diffRightEl;
+
+// ---- 滚轮/滚动同步：两边输入框滚动位置联动 ----
+    function computeDiffScroll() {
+        const lMax = diffLeftEl.scrollHeight - diffLeftEl.clientHeight;
+        const rMax = diffRightEl.scrollHeight - diffRightEl.clientHeight;
+        return { lMax: Math.max(0, lMax), rMax: Math.max(0, rMax) };
+    }
+    let _diffSyncing = false;
+    diffLeftEl.addEventListener('scroll', () => {
+        if (_diffSyncing) return;
+        const { lMax, rMax } = computeDiffScroll();
+        const ratio = lMax > 0 ? diffLeftEl.scrollTop / lMax : 0;
+        _diffSyncing = true;
+        if (rMax > 0) diffRightEl.scrollTop = ratio * rMax;
+        _diffSyncing = false;
+    });
+    diffRightEl.addEventListener('scroll', () => {
+        if (_diffSyncing) return;
+        const { lMax, rMax } = computeDiffScroll();
+        const ratio = rMax > 0 ? diffRightEl.scrollTop / rMax : 0;
+        _diffSyncing = true;
+        if (lMax > 0) diffLeftEl.scrollTop = ratio * lMax;
+        _diffSyncing = false;
+    });
 
     // 从 contenteditable 中提取纯文本：跳过 pad 占位行、还原 &nbsp; 空行
     function getDiffText(el) {
