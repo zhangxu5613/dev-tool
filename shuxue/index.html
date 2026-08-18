@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数学口算与代数变形练习</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- 开始设置页 -->
+  <div id="screen-start" class="screen active">
+    <h1>🧮 数学口算 · 代数变形</h1>
+    <p class="subtitle">口算 · 乘法简算 · 括号运算 · 去括号 · 字母表达式变形 · 解方程 —— 全部选择题，错题自动再现！</p>
+
+    <div class="card">
+      <h3>① 选择题型（可多选）</h3>
+      <div class="mode-row">
+        <label class="chk"><input type="checkbox" id="mode-mental" checked> ➕ 简单口算</label>
+        <label class="chk"><input type="checkbox" id="mode-fastmul" checked> ✖️ 乘法简便运算</label>
+        <label class="chk"><input type="checkbox" id="mode-paren" checked> 🔢 括号运算</label>
+        <label class="chk"><input type="checkbox" id="mode-expand" checked> 📂 括号拆除</label>
+        <label class="chk"><input type="checkbox" id="mode-algebra" checked> 🔤 含字母表达式变形</label>
+        <label class="chk"><input type="checkbox" id="mode-equation" checked> ⚖️ 方程转换</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>② 难度</h3>
+      <div class="mode-row">
+        <label class="chk"><input type="radio" name="level" value="1" checked> 🟢 简单</label>
+        <label class="chk"><input type="radio" name="level" value="2"> 🟡 中等</label>
+        <label class="chk"><input type="radio" name="level" value="3"> 🔴 挑战</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>③ 本轮题目数量</h3>
+      <div class="mode-row">
+        <label class="chk"><input type="radio" name="qcount" value="10" checked> 10 题</label>
+        <label class="chk"><input type="radio" name="qcount" value="20"> 20 题</label>
+        <label class="chk"><input type="radio" name="qcount" value="30"> 30 题</label>
+      </div>
+    </div>
+
+    <button class="btn-main" id="btn-start">开始练习 🚀</button>
+    <button class="btn-sub" id="btn-review">📕 错题本复习 (<span id="wrong-count">0</span>)</button>
+    <div class="stat-line">🏅 累计答对 <span id="master-count">0</span> 题</div>
+    <button class="btn-sub btn-danger" id="btn-clear-wrong">清空错题本</button>
+    <button class="btn-sub btn-danger" id="btn-clear-master">重置累计成绩</button>
+  </div>
+
+  <!-- 答题页 -->
+  <div id="screen-quiz" class="screen">
+    <div class="quiz-top">
+      <div class="progress-wrap"><div id="progress-bar"></div></div>
+      <div class="quiz-stats">
+        <span id="quiz-progress">1 / 10</span>
+        <span id="quiz-score">⭐ 0</span>
+        <span id="quiz-streak">🔥 0</span>
+      </div>
+    </div>
+
+    <div class="card question-card">
+      <div id="q-type-badge" class="badge">口算</div>
+      <div id="q-retry-badge" class="badge badge-retry" style="display:none">🔁 错题重现</div>
+      <div id="q-prompt" class="q-prompt"></div>
+      <div id="q-extra" class="q-extra"></div>
+
+      <div id="answer-choices" class="choices"></div>
+      <button class="btn-hint" id="btn-hint">💡 提示一下</button>
+    </div>
+
+    <div id="feedback" class="feedback"></div>
+    <button class="btn-main" id="btn-next" style="display:none">下一题 ➜</button>
+    <button class="btn-sub" id="btn-quit">结束本轮</button>
+  </div>
+
+  <!-- 结算页 -->
+  <div id="screen-result" class="screen">
+    <h1 id="result-title">🎉 练习完成！</h1>
+    <div class="card result-card">
+      <div class="result-row"><span>得分</span><b id="r-score">0</b></div>
+      <div class="result-row"><span>答对</span><b id="r-correct">0</b></div>
+      <div class="result-row"><span>答错</span><b id="r-wrong">0</b></div>
+      <div class="result-row"><span>正确率</span><b id="r-rate">0%</b></div>
+      <div class="result-row"><span>最高连击</span><b id="r-streak">0</b></div>
+    </div>
+    <div class="card" id="r-wrong-card" style="display:none">
+      <h3>📕 本轮错题（已加入错题本）</h3>
+      <ul id="r-wrong-list" class="wrong-list"></ul>
+    </div>
+    <button class="btn-main" id="btn-again">再来一轮 🔄</button>
+    <button class="btn-sub" id="btn-home">返回首页</button>
+  </div>
+
+</div>
+<script src="generator.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
