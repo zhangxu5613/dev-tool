@@ -53,7 +53,10 @@
     answered: false,
     isReview: false,
     roundWrong: [],   // 本轮新产生的错题
-    hintUsed: false
+    hintUsed: false,
+    level: 1,          // 本轮难度级别
+    startTime: 0,      // 本轮开始时间戳(ms)
+    endTime: 0         // 本轮结束时间戳(ms)
   };
 
   // ---------- 屏幕切换 ----------
@@ -93,7 +96,7 @@
   }
 
   // ---------- 开始一轮 ----------
-  function startRound(questions, isReview) {
+  function startRound(questions, isReview, level) {
     state.questions = questions;
     state.index = 0;
     state.score = 0;
@@ -103,6 +106,9 @@
     state.maxStreak = 0;
     state.isReview = !!isReview;
     state.roundWrong = [];
+    state.level = level || 1;
+    state.startTime = Date.now();
+    state.endTime = 0;
     showScreen("quiz");
     renderQuestion();
   }
@@ -196,16 +202,31 @@
   }
 
   // ---------- 结算 ----------
+  const LEVEL_NAMES = { 1: "🟢 简单", 2: "🟡 中等", 3: "🔴 挑战" };
+  function fmtDuration(ms) {
+    const totalSec = Math.max(0, Math.round(ms / 1000));
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return m > 0 ? `${m}分${s}秒` : `${s}秒`;
+  }
+
   function finishRound() {
+    state.endTime = Date.now();
     $("progress-bar").style.width = "100%";
     const total = state.correct + state.wrong;
     const rate = total ? Math.round((state.correct / total) * 100) : 0;
 
+    const elapsed = state.endTime - state.startTime;
+    const answered = total || 1;
+
+    $("r-level").textContent = state.isReview ? "📕 错题复习" : (LEVEL_NAMES[state.level] || "简单");
     $("r-score").textContent = state.score;
     $("r-correct").textContent = state.correct;
     $("r-wrong").textContent = state.wrong;
     $("r-rate").textContent = rate + "%";
     $("r-streak").textContent = state.maxStreak;
+    $("r-total-time").textContent = fmtDuration(elapsed);
+    $("r-avg-time").textContent = (elapsed / answered / 1000).toFixed(1) + "秒/题";
 
     let title = "🎉 练习完成！";
     if (rate === 100) title = "🏆 全对！太强了！";
@@ -247,7 +268,7 @@
       }
       const qs = MathGen.generateQuestions(types, getLevel(), getCount());
       if (!qs.length) { alert("题目生成失败，请重试"); return; }
-      startRound(qs, false);
+      startRound(qs, false, getLevel());
     });
 
     $("btn-review").addEventListener("click", () => {
@@ -261,7 +282,7 @@
         ...q,
         choices: MathGen._utils.shuffle(q.choices)
       }));
-      startRound(qs, true);
+      startRound(qs, true, getLevel());
     });
 
     $("btn-clear-wrong").addEventListener("click", () => {
@@ -290,11 +311,11 @@
         const qs = MathGen._utils.shuffle(list).map((q) => ({
           ...q, choices: MathGen._utils.shuffle(q.choices)
         }));
-        startRound(qs, true);
+        startRound(qs, true, getLevel());
       } else {
         const types = getSelectedTypes();
         const qs = MathGen.generateQuestions(types.length ? types : null, getLevel(), getCount());
-        startRound(qs, false);
+        startRound(qs, false, getLevel());
       }
     });
     $("btn-home").addEventListener("click", () => { showScreen("start"); refreshHome(); });
