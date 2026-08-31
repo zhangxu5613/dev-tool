@@ -84,12 +84,21 @@
       a = ri(10, max); b = ri(1, a); ans = a - b;
       prompt = `${a} − ${b} = ?`;
     } else if (op === "×") {
-      const m = level === 1 ? 9 : level === 2 ? 12 : 20;
-      a = ri(2, m); b = ri(2, m); ans = a * b;
+      if (level >= 3) {
+        // 挑战：一位数 × 两位数
+        a = ri(2, 9); b = ri(12, 99); ans = a * b;
+      } else {
+        const m = level === 1 ? 9 : 12;
+        a = ri(2, m); b = ri(2, m); ans = a * b;
+      }
       prompt = `${a} × ${b} = ?`;
     } else {
-      const m = level === 2 ? 9 : 12;
-      b = ri(2, m); ans = ri(2, m); a = b * ans;
+      if (level >= 3) {
+        // 挑战：两位数商 ÷ 更大除数
+        b = ri(3, 12); ans = ri(12, 25); a = b * ans;
+      } else {
+        b = ri(2, 9); ans = ri(2, 9); a = b * ans;
+      }
       prompt = `${a} ÷ ${b} = ?`;
     }
     return {
@@ -111,26 +120,30 @@
 
     if (kind === "near100") {
       // 接近整十/整百：如 98 × 5 = (100 − 2) × 5
-      const base = pick([10, 100]);
-      const near = base - pick([1, 2, 3]);
-      const mul = ri(3, 9);
+      const base = level >= 3 ? pick([100, 1000]) : pick([10, 100]);
+      const near = base - pick(level >= 3 ? [1, 2, 3, 4, 5] : [1, 2, 3]);
+      const mul = level >= 3 ? ri(4, 19) : ri(3, 9);
       a = near; b = mul; ans = a * b;
       prompt = `${a} × ${b} = ?`;
       hint = `把 ${a} 看成 (${base} − ${base - a})，再用乘法分配律：${base}×${b} − ${base - a}×${b}。`;
     } else if (kind === "times5") {
-      // ×5 = ×10 ÷2；×25 = ×100 ÷4
-      const factor = level >= 2 ? pick([5, 25]) : 5;
-      a = factor === 5 ? ri(6, 40) * 2 : ri(2, 16) * 2; // 保证结果整齐
+      // ×5 = ×10 ÷2；×25 = ×100 ÷4；×125 = ×1000 ÷8
+      const factor = level >= 3 ? pick([5, 25, 125]) : level >= 2 ? pick([5, 25]) : 5;
+      a = factor === 5 ? ri(6, level >= 3 ? 90 : 40) * 2
+        : factor === 25 ? ri(2, level >= 3 ? 40 : 16) * 2
+        : ri(2, 12) * 8; // ×125 保证结果整齐
       b = factor; ans = a * b;
       prompt = `${a} × ${b} = ?`;
       hint = factor === 5
         ? `×5 = ×10÷2，即 ${a}×10÷2 = ${a * 10}÷2。`
-        : `×25 = ×100÷4，即 ${a}×100÷4 = ${a * 100}÷4。`;
+        : factor === 25
+          ? `×25 = ×100÷4，即 ${a}×100÷4 = ${a * 100}÷4。`
+          : `×125 = ×1000÷8，即 ${a}×1000÷8 = ${a * 1000}÷8。`;
     } else {
       // 乘法分配律：a×(b+c)，如 12×101 = 12×100 + 12×1
-      a = ri(3, 25);
+      a = level >= 3 ? ri(11, 99) : ri(3, 25);
       const b100 = pick([100, 1000]);
-      const extra = pick([1, 2, 3]);
+      const extra = pick(level >= 3 ? [1, 2, 3, 4, 5, 9] : [1, 2, 3]);
       b = b100 + extra; ans = a * b;
       prompt = `${a} × ${b} = ?`;
       hint = `${a}×${b} = ${a}×${b100} + ${a}×${extra} = ${a * b100} + ${a * extra}。`;
@@ -157,7 +170,7 @@
     if (style === "ab_c") {
       // (a + b) × c   或  (a − b) × c
       const op = pick(["+", "-"]);
-      let a = ri(2, max), b = ri(1, max), c = ri(2, level === 1 ? 6 : 9);
+      let a = ri(2, max), b = ri(1, max), c = ri(2, level === 1 ? 6 : level === 2 ? 9 : 15);
       if (op === "-" && b > a) [a, b] = [b, a];
       const inner = op === "+" ? a + b : a - b;
       ans = inner * c;
@@ -165,7 +178,7 @@
       hint = `先算括号：${a}${op}${b} = ${inner}，再 ×${c}。`;
     } else if (style === "a_bc") {
       // a × (b + c)  含乘法分配律味道
-      let a = ri(2, level === 1 ? 6 : 9), b = ri(2, max), c = ri(2, max);
+      let a = ri(2, level === 1 ? 6 : level === 2 ? 9 : 15), b = ri(2, max), c = ri(2, max);
       const op = pick(["+", "-"]);
       if (op === "-" && c > b) [b, c] = [c, b];
       const inner = op === "+" ? b + c : b - c;
@@ -174,7 +187,7 @@
       hint = `先算括号：${b}${op}${c} = ${inner}，再 ×${a}。`;
     } else {
       // a + b × (c − d) 混合，考察运算顺序
-      let a = ri(2, max), b = ri(2, level === 1 ? 5 : 9), c = ri(4, max), d = ri(1, c - 1);
+      let a = ri(2, max), b = ri(2, level === 1 ? 5 : level === 2 ? 9 : 15), c = ri(4, max), d = ri(1, c - 1);
       const inner = c - d;
       ans = a + b * inner;
       prompt = `${a} + ${b} × (${c} − ${d}) = ?`;
@@ -226,18 +239,18 @@
 
     if (kind === "mulParen") {
       // k(x + b)  或  k(ax + b)
-      const k = ri(2, level === 1 ? 5 : 9);
-      const a = level === 1 ? 1 : ri(1, 4);
-      const b = ri(-9, 9) || 2;
+      const k = level >= 3 ? ri(6, 19) : ri(2, level === 1 ? 5 : 9);
+      const a = level === 1 ? 1 : level === 2 ? ri(1, 4) : ri(2, 9);
+      const b = level >= 3 ? (ri(-19, 19) || 5) : (ri(-9, 9) || 2);
       const aStr = a === 1 ? "x" : a + "x";
       prompt = `${k}(${polyToStr([{ coef: a, var: "x" }, { coef: b, var: "" }])}) = ?`;
       ansTerms = [{ coef: k * a, var: "x" }, { coef: k * b, var: "" }];
       hint = `用分配律：${k}×${aStr} 和 ${k}×(${b})，分别乘进括号。`;
     } else {
       // a − (bx + c) 去括号变号
-      const a = ri(2, 20);
-      const b = ri(1, 6);
-      const c = ri(-9, 9) || 3;
+      const a = level >= 3 ? ri(10, 60) : ri(2, 20);
+      const b = level >= 3 ? ri(3, 12) : ri(1, 6);
+      const c = level >= 3 ? (ri(-19, 19) || 7) : (ri(-9, 9) || 3);
       prompt = `${a} − (${polyToStr([{ coef: b, var: "x" }, { coef: c, var: "" }])}) = ?`;
       ansTerms = [{ coef: -b, var: "x" }, { coef: a - c, var: "" }];
       hint = `括号前是"−"，去括号后括号里每一项都要变号：−${b}x ${c >= 0 ? "−" : "+"} ${Math.abs(c)}，再与 ${a} 合并常数。`;
@@ -278,7 +291,9 @@
 
     if (kind === "combine") {
       // 合并同类项：ax + b + cx + d
-      const a = ri(1, 6), c = ri(1, 6), b = ri(-9, 9) || 2, d = ri(-9, 9) || 3;
+      const m = level >= 3 ? 15 : 6;
+      const n = level >= 3 ? 19 : 9;
+      const a = ri(1, m), c = ri(1, m), b = ri(-n, n) || 2, d = ri(-n, n) || 3;
       const terms = [
         { coef: a, var: "x" }, { coef: b, var: "" },
         { coef: c, var: "x" }, { coef: d, var: "" }
@@ -293,9 +308,11 @@
       wrongPool.push(polyToStr([{ coef: a + c, var: "x" }, { coef: b - d, var: "" }]));
       wrongPool.push(String(a + c + b + d) + "x"); // 把常数也当 x
     } else {
-      // 提取公因式：kax + kb  ->  k(ax + b)
-      const k = ri(2, 6);
-      const a = ri(1, 4), b = ri(1, 6);
+      // 提取公因式：kax + kb  ->  k(ax + b)，保证括号内互质
+      const gcd = (x, y) => y ? gcd(y, x % y) : x;
+      const k = level >= 3 ? ri(4, 12) : ri(2, 6);
+      let a = level >= 3 ? ri(2, 9) : ri(1, 4), b = level >= 3 ? ri(2, 12) : ri(1, 6);
+      while (gcd(a, b) > 1) b = level >= 3 ? ri(2, 12) : ri(1, 6);
       prompt = polyToStr([{ coef: k * a, var: "x" }, { coef: k * b, var: "" }]) + " = ?";
       const inner = polyToStr([{ coef: a, var: "x" }, { coef: b, var: "" }]);
       answer = `${k}(${inner})`;
@@ -321,23 +338,23 @@
   // ============================================================
   function genEquation(level) {
     // 生成 ax + b = c 或 ax + b = dx + e，保证 x 为整数
-    const kind = level >= 2 && Math.random() < 0.5 ? "twoSide" : "oneSide";
+    const kind = level >= 2 && Math.random() < (level >= 3 ? 0.7 : 0.5) ? "twoSide" : "oneSide";
     let prompt, x, hint, a;
 
     if (kind === "oneSide") {
       // a x + b = c
-      a = ri(2, level === 1 ? 6 : 12);
-      x = ri(-9, 12);
-      const b = ri(-15, 15);
+      a = ri(2, level === 1 ? 6 : level === 2 ? 12 : 19);
+      x = level >= 3 ? ri(-15, 20) : ri(-9, 12);
+      const b = level >= 3 ? ri(-30, 30) : ri(-15, 15);
       const c = a * x + b;
       prompt = `${polyToStr([{ coef: a, var: "x" }])} ${b >= 0 ? "+ " + b : "− " + Math.abs(b)} = ${c}，  x = ?`;
       hint = `移项：${a}x = ${c} ${b >= 0 ? "−" : "+"} ${Math.abs(b)} = ${c - b}，再除以 ${a}。`;
     } else {
       // a x + b = d x + e
-      a = ri(3, 12);
+      a = level >= 3 ? ri(5, 19) : ri(3, 12);
       let d = ri(1, a - 1); // 保证 a-d>0 且整除
-      x = ri(-8, 12);
-      const b = ri(-12, 12);
+      x = level >= 3 ? ri(-12, 18) : ri(-8, 12);
+      const b = level >= 3 ? ri(-25, 25) : ri(-12, 12);
       const e = (a - d) * x + b;
       prompt = `${polyToStr([{ coef: a, var: "x" }])} ${b >= 0 ? "+ " + b : "− " + Math.abs(b)} = ${polyToStr([{ coef: d, var: "x" }])} ${e >= 0 ? "+ " + e : "− " + Math.abs(e)}，  x = ?`;
       hint = `含 x 项移到左边：${a}x−${d}x=(${a - d})x，常数移到右边：${e}−(${b})=${e - b}，再除以 ${a - d}。`;
