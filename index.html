@@ -7,7 +7,7 @@
     <meta name="description" content="免费在线开发者工具箱：JSON 格式化、Base64、URL 编解码、时间戳转换、哈希、UUID、正则测试等。" />
     <meta name="referrer" content="no-referrer" />
     <link rel="icon" type="image/png" href="favicon.png" />
-    <link rel="stylesheet" href="style.css?v=69" />
+    <link rel="stylesheet" href="style.css?v=70" />
     <link rel="stylesheet" href="markdown-editor.css?v=1" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
 </head>
@@ -19,7 +19,15 @@
                 <span class="logo-text">开发者工具箱</span>
             </div>
             <nav class="nav" id="mainNav">
-                <a href="#" class="nav-item active" data-tab="json">JSON 工具</a>
+                <div class="nav-dropdown" id="jsonNavDropdown">
+                    <a href="#" class="nav-item nav-link active" data-tab="json">JSON 工具 <span class="nav-caret">▾</span></a>
+                    <div class="nav-dropdown-menu">
+                        <a href="#" class="nav-dropdown-item" data-tab="json">JSON在线解析</a>
+                        <a href="#" class="nav-dropdown-item" data-tab="jsonpath">JSONPath 匹配</a>
+                        <a href="#" class="nav-dropdown-item" data-tab="json5">JSON5</a>
+                        <a href="#" class="nav-dropdown-item" data-tab="jsonhero">JSON Hero</a>
+                    </div>
+                </div>
                 <a href="#" class="nav-item" data-tab="jsondiff">文本 Diff</a>
                 <a href="#" class="nav-item" data-tab="strfmt">字符串格式化</a>
                 <a href="#" class="nav-item" data-tab="http">HTTP 请求</a>
@@ -122,6 +130,176 @@
                         <span id="outputInfo" class="pane-info">0 行 · 0 字符</span>
                     </div>
                 </section>
+            </div>
+        </section>
+
+        <!-- ============ JSONPath 匹配 ============ -->
+        <section class="tab-panel" data-panel="jsonpath">
+            <div class="tool-card">
+                <h2 class="tool-title">JSONPath 匹配</h2>
+                <div class="options">
+                    <span class="jp-expr-badge">JSONPath 表达式语法遵循 <a href="https://www.jsonpath.cn/" target="_blank" rel="noopener noreferrer" style="color:inherit">jsonpath.cn</a></span>
+                    <span class="diff-actions">
+                        <button class="btn btn-primary" id="jpRun">执行匹配</button>
+                        <button class="btn" id="jpSample">示例</button>
+                        <button class="btn btn-danger" id="jpClear">清空</button>
+                    </span>
+                </div>
+
+                <div class="jp-path-row">
+                    <span class="pane-title" style="flex-shrink:0">路径</span>
+                    <input type="text" id="jpPathInput" class="jp-path-input" placeholder='例如：$.store.book[?(@.price < 10)].title 或 $..author' spellcheck="false" />
+                </div>
+
+                <div class="jp-quick-nav" id="jpQuickNav">
+                    <span style="font-size:12px;color:var(--text-muted)">常用：</span>
+                    <button class="jp-quick-chip" data-path="$.store.book[*].author">所有作者</button>
+                    <button class="jp-quick-chip" data-path="$..author">递归所有作者</button>
+                    <button class="jp-quick-chip" data-path="$.store.*">store 下所有成员</button>
+                    <button class="jp-quick-chip" data-path="$..book[2]">第三本书</button>
+                    <button class="jp-quick-chip" data-path="$..book[-1:]">最后一本书</button>
+                    <button class="jp-quick-chip" data-path="$..book[0,1]">前两本书</button>
+                    <button class="jp-quick-chip" data-path="$..book[?(@.isbn)]">有 ISBN 的书</button>
+                    <button class="jp-quick-chip" data-path="$.store.book[?(@.price < 10)]">价格小于 10</button>
+                    <button class="jp-quick-chip" data-path="$..book[?(@.price == 8.95)]">价格等于 8.95</button>
+                    <button class="jp-quick-chip" data-path="$..*">所有节点</button>
+                </div>
+
+                <div class="dual-wrap" style="margin-top:14px">
+                    <div class="dual-pane">
+                        <div class="pane-header">
+                            <span class="pane-title">JSON 输入</span>
+                            <button class="mini-btn" data-copy="#jpInput">复制</button>
+                        </div>
+                        <textarea id="jpInput" class="mono" spellcheck="false" placeholder='在此粘贴 JSON，然后输入 JSONPath 表达式执行匹配'></textarea>
+                    </div>
+                    <div class="dual-actions">
+                        <button class="btn btn-primary" id="jpRun2">匹配 →</button>
+                        <button class="btn" id="jpCopyAll">复制全部结果</button>
+                        <button class="btn" id="jpAsPaths">按路径显示</button>
+                        <button class="btn btn-danger" id="jpClear2">清空</button>
+                    </div>
+                    <div class="dual-pane">
+                        <div class="pane-header">
+                            <span class="pane-title">匹配结果</span>
+                            <span id="jpResultInfo" class="pane-info">0 条</span>
+                        </div>
+                        <div class="plain-area" id="jpResult" style="min-height:300px;overflow:auto">等待匹配...</div>
+                    </div>
+                </div>
+                <div class="jp-status" id="jpStatus">就绪</div>
+
+                <div class="uuid-versions-info" style="margin-top:18px">
+                    <h3>JSONPath 语法速查</h3>
+                    <table class="info-table">
+                        <thead><tr><th>表达式</th><th>含义</th></tr></thead>
+                        <tbody>
+                            <tr><td><b>$</b></td><td>根对象/数组</td></tr>
+                            <tr><td><b>@</b></td><td>当前对象（筛选表达式内）</td></tr>
+                            <tr><td><b>. 或 []</b></td><td>子成员（对象取值 / 数组索引）</td></tr>
+                            <tr><td><b>..</b></td><td>递归下降，从任意层级提取</td></tr>
+                            <tr><td><b>*</b></td><td>通配符，所有成员</td></tr>
+                            <tr><td><b>[start:end:step]</b></td><td>数组切片</td></tr>
+                            <tr><td><b>[?(expression)]</b></td><td>筛选表达式，如 <code>[?(@.price &lt; 10)]</code></td></tr>
+                            <tr><td><b>[n,m]</b></td><td>多索引联合取值</td></tr>
+                            <tr><td><b>长度 / 大小写</b></td><td><code>@.length</code>、<code>~</code>（属性名）等由 jsonpath-plus 扩展支持</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ JSON5 ============ -->
+        <section class="tab-panel" data-panel="json5">
+            <div class="tool-card">
+                <h2 class="tool-title">JSON5</h2>
+                <div class="options">
+                    <label class="field-inline">
+                        输出缩进
+                        <select id="json5Indent">
+                            <option value="2">2 空格</option>
+                            <option value="4" selected>4 空格</option>
+                            <option value="tab">Tab</option>
+                        </select>
+                    </label>
+                    <span class="diff-actions">
+                        <button class="btn btn-primary" id="json5ToStd">JSON5 → JSON</button>
+                        <button class="btn" id="json5ToJ5">JSON → JSON5</button>
+                        <button class="btn" id="json5Sample">示例</button>
+                        <button class="btn btn-danger" id="json5Clear">清空</button>
+                    </span>
+                </div>
+
+                <div class="dual-wrap" style="margin-top:14px">
+                    <div class="dual-pane">
+                        <div class="pane-header">
+                            <span class="pane-title">输入</span>
+                            <button class="mini-btn" data-copy="#json5Input">复制</button>
+                        </div>
+                        <textarea id="json5Input" class="mono" spellcheck="false" placeholder='粘贴 JSON5 或标准 JSON。JSON5 支持：无引号键名、单引号字符串、注释、尾逗号、十六进制数字、多行字符串等'></textarea>
+                    </div>
+                    <div class="dual-actions">
+                        <button class="btn btn-primary" id="json5ToStd2">→ 标准 JSON</button>
+                        <button class="btn" id="json5ToJ52">→ JSON5 ↓</button>
+                        <button class="btn" id="json5CopyOut">复制结果</button>
+                    </div>
+                    <div class="dual-pane">
+                        <div class="pane-header">
+                            <span class="pane-title">结果</span>
+                            <span id="json5Info" class="pane-info"></span>
+                        </div>
+                        <textarea id="json5Output" class="mono" spellcheck="false" readonly placeholder='转换结果'></textarea>
+                    </div>
+                </div>
+                <div class="jp-status" id="json5Status">就绪</div>
+
+                <div class="uuid-versions-info" style="margin-top:18px">
+                    <h3>JSON5 特性说明</h3>
+                    <table class="info-table">
+                        <thead><tr><th>特性</th><th>示例</th></tr></thead>
+                        <tbody>
+                            <tr><td><b>无引号键名</b></td><td><code>{ key: "value" }</code></td></tr>
+                            <tr><td><b>单引号字符串</b></td><td><code>'single'</code></td></tr>
+                            <tr><td><b>注释</b></td><td><code>// 单行</code> 与 <code>/* 多行 */</code></td></tr>
+                            <tr><td><b>尾逗号</b></td><td><code>[1, 2, 3,]</code></td></tr>
+                            <tr><td><b>十六进制数字</b></td><td><code>0xFF</code></td></tr>
+                            <tr><td><b>前导/尾随小数点</b></td><td><code>.5</code>、<code>5.</code></td></tr>
+                            <tr><td><b>正负号 Infinity/NaN</b></td><td><code>-Infinity</code>、<code>NaN</code></td></tr>
+                            <tr><td><b>多行字符串</b></td><td>反斜杠续行，换行不中断</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ JSON Hero ============ -->
+        <section class="tab-panel" data-panel="jsonhero">
+            <div class="tool-card">
+                <h2 class="tool-title">JSON Hero</h2>
+                <div class="options">
+                    <span class="diff-actions">
+                        <button class="btn" id="jhSample">示例</button>
+                        <button class="btn btn-danger" id="jhClear">清空</button>
+                    </span>
+                    <span class="status-line" id="jhStatus">就绪</span>
+                </div>
+                <textarea id="jhInput" class="plain-area" style="min-height:140px;margin-top:14px" spellcheck="false" placeholder='在此粘贴 JSON，将以类似 jsonhero.io 的索引卡片方式浏览：左侧键名列表，右侧值卡片；顶部可搜索、可切换视图'></textarea>
+
+                <div class="jh-search-bar" id="jhSearchBar" hidden>
+                    <input type="text" id="jhSearch" placeholder="搜索键名或值..." spellcheck="false" />
+                    <select id="jhMode">
+                        <option value="cards" selected>卡片视图</option>
+                        <option value="table">表格视图</option>
+                    </select>
+                </div>
+
+                <div class="jh-layout" id="jhLayout" hidden>
+                    <div class="jh-side">
+                        <div class="jh-side-title">索引（根节点）</div>
+                        <div class="jh-side-list" id="jhSideList"></div>
+                    </div>
+                    <div class="jh-main" id="jhMain"></div>
+                </div>
             </div>
         </section>
 
@@ -1227,7 +1405,9 @@
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dom-to-image-more@3.5.0/dist/dom-to-image-more.min.js"></script>
-    <script src="script.js?v=85"></script>
+    <script src="jsonpath-plus.min.js"></script>
+    <script src="json5.min.js"></script>
+    <script src="script.js?v=86"></script>
     <script src="markdown-editor.js?v=3"></script>
 
     <!-- 回到顶部按钮 -->

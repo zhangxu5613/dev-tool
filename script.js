@@ -1283,15 +1283,27 @@
         panels.forEach(p => {
             p.classList.toggle('active', p.dataset.panel === tab);
         });
+        // 同步 JSON 下拉菜单子项与父链接高亮
+        document.querySelectorAll('.nav-dropdown-item').forEach(item => {
+            item.classList.toggle('active', item.dataset.tab === tab);
+        });
+        const caretLink = document.querySelector('#jsonNavDropdown .nav-link');
+        if (caretLink) {
+            caretLink.classList.toggle('active',
+                ['json', 'jsonpath', 'json5', 'jsonhero'].includes(tab));
+        }
         localStorage.setItem('dev-tool-tab', tab);
         window.dispatchEvent(new CustomEvent('devtool:tabchange', { detail: { tab } }));
     }
 
     mainNav.addEventListener('click', (e) => {
-        const a = e.target.closest('.nav-item');
+        const a = e.target.closest('.nav-item, .nav-dropdown-item');
         if (!a) return;
         e.preventDefault();
         switchTab(a.dataset.tab);
+        // 点击下拉子项后收起触屏展开态
+        const dd = document.getElementById('jsonNavDropdown');
+        if (dd && a.classList.contains('nav-dropdown-item')) dd.classList.remove('open');
     });
 
     const savedTab = localStorage.getItem('dev-tool-tab');
@@ -3837,6 +3849,642 @@ const diffLeftEl = document.getElementById('diffLeft');
         qrDecodeStatus.textContent = '就绪';
         qrDecodeStatus.style.color = '';
     });
+
+    // ================================================================
+    // ===================== JSONPath 匹配 =====================
+    // ================================================================
+    (function () {
+        const runBtn = document.getElementById('jpRun');
+        if (!runBtn) return;
+        const runBtn2 = document.getElementById('jpRun2');
+        const pathInput = document.getElementById('jpPathInput');
+        const inputEl = document.getElementById('jpInput');
+        const resultEl = document.getElementById('jpResult');
+        const resultInfo = document.getElementById('jpResultInfo');
+        const statusEl = document.getElementById('jpStatus');
+        const sampleBtn = document.getElementById('jpSample');
+        const clearBtn = document.getElementById('jpClear');
+        const clearBtn2 = document.getElementById('jpClear2');
+        const copyAllBtn = document.getElementById('jpCopyAll');
+        const asPathsBtn = document.getElementById('jpAsPaths');
+        const quickNav = document.getElementById('jpQuickNav');
+
+        let lastResults = null; // { values, paths }
+        let showPaths = false;
+
+        const SAMPLE_JSON = {
+            "store": {
+                "book": [
+                    { "category": "reference", "author": "Nigel Rees", "title": "Sayings of the Century", "price": 8.95 },
+                    { "category": "fiction", "author": "Evelyn Waugh", "title": "Sword of Honour", "price": 12.99 },
+                    { "category": "fiction", "author": "Herman Melville", "title": "Moby Dick", "isbn": "0-553-21311-3", "price": 8.99 },
+                    { "category": "fiction", "author": "J. R. R. Tolkien", "title": "The Lord of the Rings", "isbn": "0-395-19395-8", "price": 22.99 }
+                ],
+                "bicycle": { "color": "red", "price": 19.95 }
+            },
+            "expensive": 10
+        };
+
+        function getLib() {
+            // jsonpath-plus UMD 导出: window.JSONPath = { JSONPath: fn }
+            if (typeof window.JSONPath === 'object' && typeof window.JSONPath.JSONPath === 'function') {
+                return window.JSONPath.JSONPath;
+            }
+            if (typeof window.jsonpath === 'function') return window.jsonpath;
+            return null;
+        }
+
+        function setStatus(kind, msg) {
+            statusEl.className = 'jp-status' + (kind ? ' ' + kind : '');
+            statusEl.textContent = msg;
+        }
+
+        function fmtValue(v) {
+            if (v === undefined) return 'undefined';
+            try {
+                return JSON.stringify(v, null, 2);
+            } catch (e) {
+                return String(v);
+            }
+        }
+
+        function renderResults() {
+            if (!lastResults) return;
+            const n = lastResults.values.length;
+            resultInfo.textContent = n + ' 条';
+            if (n === 0) {
+                resultEl.innerHTML = '<div style="color:var(--text-muted)">无匹配结果</div>';
+                return;
+            }
+            let html = '<div class="jp-result-list">';
+            lastResults.values.forEach((v, i) => {
+                const p = lastResults.paths[i] || '';
+                const valHTML = escapeHTML(fmtValue(v));
+                if (showPaths) {
+                    html += `<div class="jp-result-item"><div class="jp-res-path">${escapeHTML(p)}</div><div class="jp-res-value">${valHTML}</div></div>`;
+                } else {
+                    html += `<div class="jp-result-item"><div class="jp-res-path">#${i + 1}</div><div class="jp-res-value">${valHTML}</div></div>`;
+                }
+            });
+            html += '</div>';
+            resultEl.innerHTML = html;
+        }
+
+        function run() {
+            const raw = inputEl.value.trim();
+            const path = pathInput.value.trim();
+            if (!raw) { setStatus('err', '请先输入 JSON'); return; }
+            if (!path) { setStatus('err', '请输入 JSONPath 表达式'); return; }
+
+            let json;
+            try {
+                json = JSON.parse(raw);
+            } catch (e) {
+                // 尝试容错：注释 / 尾逗号
+                try {
+                    json = (typeof window.JSON5 === 'function' || window.JSON5) && window.JSON5.parse ? window.JSON5.parse(raw) : JSON.parse(raw);
+                } catch (e2) {
+                    setStatus('err', 'JSON 解析失败：' + e.message);
+                    resultEl.innerHTML = '';
+                    resultInfo.textContent = '0 条';
+                    return;
+                }
+            }
+
+            const lib = getLib();
+            if (!lib) { setStatus('err', 'jsonpath-plus 库未加载'); return; }
+
+            let values, paths;
+            try {
+                values = lib({ path: path, json: json, wrap: true });
+            } catch (e) {
+                setStatus('err', '表达式错误：' + e.message);
+                resultEl.innerHTML = '';
+                resultInfo.textContent = '0 条';
+                return;
+            }
+            try {
+                paths = lib({ path: path, json: json, wrap: true, resultType: 'path' });
+            } catch (e) {
+                paths = values.map(() => '');
+            }
+            lastResults = { values, paths };
+            renderResults();
+            setStatus('ok', `匹配完成：${values.length} 条结果`);
+        }
+
+        runBtn.addEventListener('click', run);
+        runBtn2.addEventListener('click', run);
+        pathInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); run(); }
+        });
+
+        sampleBtn.addEventListener('click', () => {
+            inputEl.value = JSON.stringify(SAMPLE_JSON, null, 4);
+            pathInput.value = '$.store.book[?(@.price < 10)].title';
+            run();
+        });
+
+        function doClear() {
+            inputEl.value = '';
+            pathInput.value = '';
+            resultEl.innerHTML = '等待匹配...';
+            resultInfo.textContent = '0 条';
+            setStatus('', '就绪');
+            lastResults = null;
+        }
+        clearBtn.addEventListener('click', doClear);
+        clearBtn2.addEventListener('click', doClear);
+
+        asPathsBtn.addEventListener('click', () => {
+            if (!lastResults) { setStatus('err', '请先执行匹配'); return; }
+            showPaths = !showPaths;
+            asPathsBtn.textContent = showPaths ? '按序号显示' : '按路径显示';
+            renderResults();
+        });
+
+        copyAllBtn.addEventListener('click', () => {
+            if (!lastResults || !lastResults.values.length) { setStatus('err', '无结果可复制'); return; }
+            const text = showPaths
+                ? lastResults.values.map((v, i) => (lastResults.paths[i] || '') + ' = ' + fmtValue(v)).join('\n')
+                : lastResults.values.map(fmtValue).join('\n---\n');
+            copyTextSimple(text, '全部匹配结果');
+        });
+
+        quickNav.addEventListener('click', (e) => {
+            const chip = e.target.closest('.jp-quick-chip');
+            if (!chip) return;
+            pathInput.value = chip.dataset.path;
+            run();
+        });
+    })();
+
+    // ================================================================
+    // ===================== JSON5 =====================
+    // ================================================================
+    (function () {
+        const toStdBtn = document.getElementById('json5ToStd');
+        if (!toStdBtn) return;
+        const toStdBtn2 = document.getElementById('json5ToStd2');
+        const toJ5Btn = document.getElementById('json5ToJ5');
+        const toJ5Btn2 = document.getElementById('json5ToJ52');
+        const sampleBtn = document.getElementById('json5Sample');
+        const clearBtn = document.getElementById('json5Clear');
+        const copyOutBtn = document.getElementById('json5CopyOut');
+        const indentSel = document.getElementById('json5Indent');
+        const inputEl = document.getElementById('json5Input');
+        const outputEl = document.getElementById('json5Output');
+        const infoEl = document.getElementById('json5Info');
+        const statusEl = document.getElementById('js5Status') || document.getElementById('json5Status');
+
+        const SAMPLE = `{
+  // JSON5 示例：支持注释、无引号键名、单引号、十六进制、尾逗号
+  name: '开发者工具箱',
+  version: 0x10,
+  features: [
+    '格式化',
+    '压缩',
+    '转义',
+  ],
+  url: "https://example.com",
+  lucky: .5,
+  props: {
+    offline: true,
+  },
+}`;
+
+        function getIndent() {
+            const v = indentSel.value;
+            if (v === 'tab') return '\t';
+            return Number(v);
+        }
+
+        function setStatus(kind, msg) {
+            if (!statusEl) return;
+            statusEl.className = 'jp-status' + (kind ? ' ' + kind : '');
+            statusEl.textContent = msg;
+        }
+
+        function parseInput() {
+            const raw = inputEl.value;
+            if (!raw.trim()) throw new Error('输入为空');
+            if (!window.JSON5) throw new Error('JSON5 库未加载');
+            return window.JSON5.parse(raw);
+        }
+
+        function toStd() {
+            try {
+                const obj = parseInput();
+                const out = JSON.stringify(obj, null, getIndent());
+                outputEl.value = out;
+                infoEl.textContent = countLinesChars(out);
+                setStatus('ok', '已转换为标准 JSON（注释、尾逗号等已移除）');
+            } catch (e) {
+                outputEl.value = '';
+                infoEl.textContent = '';
+                setStatus('err', '解析失败：' + (e.message || e));
+            }
+        }
+
+        function countLinesChars(s) {
+            if (!s) return '0 行 · 0 字符';
+            const lines = s.split('\n').length;
+            return `${lines} 行 · ${s.length} 字符`;
+        }
+
+        function toJ5() {
+            try {
+                const obj = parseInput();
+                const out = window.JSON5.stringify(obj, null, getIndent());
+                outputEl.value = out;
+                infoEl.textContent = countLinesChars(out);
+                setStatus('ok', '已转换为 JSON5（键名去引号、字符串单引号、允许尾逗号）');
+            } catch (e) {
+                outputEl.value = '';
+                infoEl.textContent = '';
+                setStatus('err', '解析失败：' + (e.message || e));
+            }
+        }
+
+        toStdBtn.addEventListener('click', toStd);
+        toStdBtn2.addEventListener('click', toStd);
+        toJ5Btn.addEventListener('click', toJ5);
+        toJ5Btn2.addEventListener('click', toJ5);
+
+        sampleBtn.addEventListener('click', () => {
+            inputEl.value = SAMPLE;
+            toStd();
+        });
+
+        clearBtn.addEventListener('click', () => {
+            inputEl.value = '';
+            outputEl.value = '';
+            infoEl.textContent = '';
+            setStatus('', '就绪');
+        });
+
+        copyOutBtn.addEventListener('click', () => {
+            if (!outputEl.value) { setStatus('err', '无结果可复制'); return; }
+            copyTextSimple(outputEl.value, 'JSON5 转换结果');
+        });
+    })();
+
+    // ================================================================
+    // ===================== JSON Hero =====================
+    // ================================================================
+    (function () {
+        const inputEl = document.getElementById('jhInput');
+        if (!inputEl) return;
+        const sampleBtn = document.getElementById('jhSample');
+        const clearBtn = document.getElementById('jhClear');
+        const searchInput = document.getElementById('jhSearch');
+        const modeSel = document.getElementById('jhMode');
+        const searchWrap = document.getElementById('jhSearchBar');
+        const layoutEl = document.getElementById('jhLayout');
+        const sideListEl = document.getElementById('jhSideList');
+        const mainEl = document.getElementById('jhMain');
+        const statusEl = document.getElementById('jhStatus');
+
+        let rootData = null;
+        let currentPath = [];   // 面包屑路径数组，元素为 key 或 index
+        let searchKeyword = '';
+
+        const SAMPLE = {
+            "project": "开发者工具箱",
+            "version": "1.0.0",
+            "tags": ["json", "base64", "hash"],
+            "maintainer": { "name": "slade", "email": "dev@example.com" },
+            "tools": [
+                { "name": "JSON 解析", "type": "parser", "hotkey": "Ctrl+Enter" },
+                { "name": "Base64", "type": "codec" },
+                { "name": "时间戳", "type": "convertor" }
+            ],
+            "stats": { "stars": 42, "forks": 7, "online": true }
+        };
+
+        function typeOf(v) {
+            if (v === null) return 'null';
+            if (Array.isArray(v)) return 'array';
+            return typeof v;
+        }
+
+        function typeLabel(t) {
+            return { object: 'object', array: 'array', string: 'string', number: 'number', boolean: 'bool', null: 'null' }[t] || t;
+        }
+
+        function iconClass(t) {
+            return { object: 'jh-icon-object', array: 'jh-icon-array', string: 'jh-icon-string', number: 'jh-icon-number', boolean: 'jh-icon-bool', null: 'jh-icon-null' }[t] || 'jh-icon-null';
+        }
+
+        function iconText(t) {
+            return { object: '{}', array: '[]', string: 'Aa', number: '#', boolean: '01', null: '∅' }[t] || '?';
+        }
+
+        function setStatus(kind, msg) {
+            statusEl.textContent = msg;
+            statusEl.style.color = kind === 'err' ? 'var(--danger)' : (kind === 'ok' ? 'var(--success)' : '');
+        }
+
+        function getNode() {
+            let node = rootData;
+            for (const seg of currentPath) {
+                if (node == null) return undefined;
+                node = node[seg];
+            }
+            return node;
+        }
+
+        function pathString() {
+            if (!currentPath.length) return '$';
+            return '$' + currentPath.map(s => typeof s === 'number' ? `[${s}]` : `['${s}']`).join('');
+        }
+
+        function matchesSearch(key, val) {
+            if (!searchKeyword) return true;
+            const kw = searchKeyword.toLowerCase();
+            if (String(key).toLowerCase().includes(kw)) return true;
+            try {
+                const s = typeof val === 'object' && val !== null ? JSON.stringify(val) : String(val);
+                if (s.toLowerCase().includes(kw)) return true;
+            } catch (e) { /* ignore */ }
+            return false;
+        }
+
+        function renderSide() {
+            const node = getNode();
+            sideListEl.innerHTML = '';
+            const title = sideListEl.previousElementSibling;
+            if (title) title.textContent = `索引（${currentPath.length ? '当前节点' : '根节点'}）`;
+            if (node === undefined || node === null) return;
+
+            let entries = [];
+            if (Array.isArray(node)) {
+                entries = node.map((v, i) => [i, v]);
+            } else if (typeof node === 'object') {
+                entries = Object.keys(node).map(k => [k, node[k]]);
+            } else {
+                return;
+            }
+
+            const filtered = entries.filter(([k, v]) => matchesSearch(k, v));
+            if (!filtered.length) {
+                sideListEl.innerHTML = '<div style="padding:10px;color:var(--text-muted);font-size:13px">无匹配项</div>';
+                return;
+            }
+
+            filtered.forEach(([k, v]) => {
+                const t = typeOf(v);
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'jh-side-item';
+                let size = '';
+                if (t === 'array') size = ` · ${v.length}`;
+                else if (t === 'object') size = ` · ${Object.keys(v).length}`;
+                item.innerHTML = `<span class="jh-key">${escapeHTML(String(k))}</span><span class="jh-type">${typeLabel(t)}${size}</span>`;
+                item.addEventListener('click', () => {
+                    currentPath.push(k);
+                    render();
+                });
+                sideListEl.appendChild(item);
+            });
+        }
+
+        function valuePreview(v, maxLen = 80) {
+            let s;
+            if (v === null) return 'null';
+            if (Array.isArray(v)) return `Array(${v.length})`;
+            if (typeof v === 'object') return `{ ${Object.keys(v).slice(0, 3).map(k => `${k}: …`).join(', ')} }`;
+            s = String(v);
+            return s.length > maxLen ? s.slice(0, maxLen) + '…' : s;
+        }
+
+        function renderCards() {
+            const node = getNode();
+            mainEl.innerHTML = '';
+            if (node === undefined || node === null) {
+                mainEl.innerHTML = '<div class="jh-empty">空节点</div>';
+                return;
+            }
+
+            if (typeOf(node) === 'object' || typeOf(node) === 'array') {
+                const wrap = document.createElement('div');
+                wrap.className = 'jh-cards';
+                let entries = Array.isArray(node)
+                    ? node.map((v, i) => [i, v])
+                    : Object.keys(node).map(k => [k, node[k]]);
+                const filtered = entries.filter(([k, v]) => matchesSearch(k, v));
+                if (!filtered.length) {
+                    mainEl.innerHTML = '<div class="jh-empty">无匹配项，调整搜索关键词</div>';
+                    return;
+                }
+                filtered.forEach(([k, v]) => {
+                    const t = typeOf(v);
+                    const card = document.createElement('button');
+                    card.type = 'button';
+                    card.className = 'jh-card';
+                    card.innerHTML = `
+                        <div class="jh-card-head">
+                            <span class="jh-card-icon ${iconClass(t)}">${iconText(t)}</span>
+                            <span class="jh-card-title">${escapeHTML(String(k))}</span>
+                        </div>
+                        <div class="jh-card-body">${escapeHTML(valuePreview(v))}</div>`;
+                    card.addEventListener('click', () => {
+                        currentPath.push(k);
+                        render();
+                    });
+                    wrap.appendChild(card);
+                });
+                mainEl.appendChild(wrap);
+            } else {
+                // 标量：详情视图
+                const t = typeOf(node);
+                const last = currentPath[currentPath.length - 1];
+                const detail = document.createElement('div');
+                detail.className = 'jh-detail';
+                const valClass = { string: 'jh-val-string', number: 'jh-val-number', boolean: 'jh-val-bool', null: 'jh-val-null' }[t] || '';
+                detail.innerHTML = `
+                    <div class="jh-detail-head">
+                        <span class="jh-card-icon ${iconClass(t)}">${iconText(t)}</span>
+                        <span class="jh-detail-title">${escapeHTML(String(last))}</span>
+                        <span class="jh-detail-type">${typeLabel(t)}</span>
+                    </div>
+                    <div class="jh-detail-body ${valClass}">${escapeHTML(node === null ? 'null' : String(node))}</div>`;
+                mainEl.appendChild(detail);
+            }
+        }
+
+        function renderTable() {
+            const node = getNode();
+            mainEl.innerHTML = '';
+            if (!node || typeof node !== 'object') { renderCards(); return; }
+
+            let entries = Array.isArray(node)
+                ? node.map((v, i) => [i, v])
+                : Object.keys(node).map(k => [k, node[k]]);
+            const filtered = entries.filter(([k, v]) => matchesSearch(k, v));
+            if (!filtered.length) {
+                mainEl.innerHTML = '<div class="jh-empty">无匹配项，调整搜索关键词</div>';
+                return;
+            }
+
+            const table = document.createElement('table');
+            table.className = 'info-table';
+            table.innerHTML = `
+                <thead><tr><th style="width:34%">键</th><th>值</th><th style="width:90px">类型</th><th style="width:80px">操作</th></tr></thead>
+                <tbody>
+                    ${filtered.map(([k, v], fi) => {
+                        const t = typeOf(v);
+                        return `<tr>
+                            <td class="mono">${escapeHTML(String(k))}</td>
+                            <td class="mono" style="word-break:break-all">${escapeHTML(valuePreview(v, 120))}</td>
+                            <td><span class="jh-detail-type">${typeLabel(t)}</span></td>
+                            <td><button class="mini-btn jh-table-open" data-fi="${fi}">展开</button></td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>`;
+            mainEl.appendChild(table);
+            table.querySelectorAll('.jh-table-open').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const fi = Number(btn.dataset.fi);
+                    const entry = filtered[fi];
+                    if (!entry) return;
+                    currentPath.push(Array.isArray(node) ? Number(entry[0]) : entry[0]);
+                    render();
+                });
+            });
+        }
+
+        function renderBreadcrumb() {
+            const bc = document.createElement('div');
+            bc.className = 'jh-breadcrumb';
+            let html = `<button class="jh-crumb-btn" data-idx="-1">\$</button>`;
+            currentPath.forEach((seg, i) => {
+                html += `<span class="jh-crumb-sep">›</span>`;
+                const label = typeof seg === 'number' ? `[${seg}]` : seg;
+                if (i === currentPath.length - 1) {
+                    html += `<span class="jh-crumb-cur">${escapeHTML(String(label))}</span>`;
+                } else {
+                    html += `<button class="jh-crumb-btn" data-idx="${i}">${escapeHTML(String(label))}</button>`;
+                }
+            });
+            bc.innerHTML = html;
+            bc.querySelectorAll('.jh-crumb-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = Number(btn.dataset.idx);
+                    currentPath = idx < 0 ? [] : currentPath.slice(0, idx + 1);
+                    render();
+                });
+            });
+            return bc;
+        }
+
+        function render() {
+            const node = getNode();
+            const isContainer = node && typeof node === 'object';
+            // 面包屑
+            mainEl.innerHTML = '';
+            mainEl.appendChild(renderBreadcrumb());
+            if (isContainer) {
+                renderSide();
+                if (modeSel.value === 'table') renderTable();
+                else renderCards();
+            } else {
+                renderSide(); // 标量父节点列表
+                renderCards(); // 渲染详情
+            }
+            if (node === undefined) {
+                mainEl.innerHTML = '<div class="jh-empty">节点不存在</div>';
+            }
+        }
+
+        function parseAndShow() {
+            const raw = inputEl.value.trim();
+            if (!raw) {
+                layoutEl.hidden = true;
+                searchWrap.hidden = true;
+                rootData = null;
+                setStatus('', '就绪');
+                return;
+            }
+            let data;
+            try {
+                data = JSON.parse(raw);
+            } catch (e) {
+                try {
+                    data = window.JSON5 ? window.JSON5.parse(raw) : null;
+                } catch (e2) {
+                    data = null;
+                }
+                if (data === null) {
+                    layoutEl.hidden = true;
+                    searchWrap.hidden = true;
+                    setStatus('err', 'JSON 解析失败：' + e.message);
+                    return;
+                }
+            }
+            if (data === null || typeof data !== 'object') {
+                setStatus('err', '顶层必须是对象或数组');
+                layoutEl.hidden = true;
+                searchWrap.hidden = true;
+                return;
+            }
+            rootData = data;
+            currentPath = [];
+            searchKeyword = '';
+            searchInput.value = '';
+            searchWrap.hidden = false;
+            layoutEl.hidden = false;
+            render();
+            setStatus('ok', '已加载，左侧索引点击可逐层浏览');
+        }
+
+        let parseTimer;
+        inputEl.addEventListener('input', () => {
+            clearTimeout(parseTimer);
+            parseTimer = setTimeout(parseAndShow, 300);
+        });
+
+        searchInput.addEventListener('input', () => {
+            searchKeyword = searchInput.value.trim();
+            render();
+        });
+
+        modeSel.addEventListener('change', render);
+
+        sampleBtn.addEventListener('click', () => {
+            inputEl.value = JSON.stringify(SAMPLE, null, 4);
+            parseAndShow();
+        });
+
+        clearBtn.addEventListener('click', () => {
+            inputEl.value = '';
+            rootData = null;
+            currentPath = [];
+            searchKeyword = '';
+            layoutEl.hidden = true;
+            searchWrap.hidden = true;
+            setStatus('', '就绪');
+        });
+    })();
+
+    // ================================================================
+    // ===================== 导航下拉菜单（触屏支持）=====================
+    // ================================================================
+    (function () {
+        const dropdown = document.getElementById('jsonNavDropdown');
+        if (!dropdown) return;
+        const link = dropdown.querySelector('.nav-link');
+        // 触屏设备：点击切换展开（hover 由 CSS 处理）
+        link.addEventListener('click', (e) => {
+            if (window.matchMedia('(hover: none)').matches) {
+                e.preventDefault();
+                dropdown.classList.toggle('open');
+            }
+        });
+        document.addEventListener('click', (e) => {
+            if (!dropdown.contains(e.target)) dropdown.classList.remove('open');
+        });
+    })();
 
     // ---------- 回到顶部 ----------
     document.addEventListener('click', function (e) {
