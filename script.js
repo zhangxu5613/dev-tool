@@ -116,7 +116,7 @@
 
     function valueHTML(v) {
         const t = typeOf(v);
-        if (t === 'bigint') return `<span class="jl-value tk-num" title="大整数（超出安全范围）">${escapeHTML(v.v)}</span>`;
+        if (t === 'bigint') return `<span class="jl-value tk-num" title="大数/高精度数值（已保留原始精度）">${escapeHTML(v.v)}</span>`;
         if (t === 'string') {
             // 检测 HTTP(S) 链接
             if (/^https?:\/\/.+/i.test(v)) {
@@ -180,7 +180,8 @@
     }
 
     function safeJSONParse(text) {
-        // 匹配 JSON 中超出安全整数范围的数字，替换为带标记字符串
+        // 匹配 JSON 中超出安全整数范围的大整数、高精度小数与科学计数法，
+        // 替换为带标记字符串以保留原始精度
         const placeholder = '"__BIGINT_PLACEHOLDER_';
         let counter = 0;
         const bigInts = [];
@@ -191,12 +192,23 @@
             stringMap.push(m);
             return ph;
         });
-        // 在无字符串的文本中替换大数字
+        // 在无字符串的文本中保护超精度数字。
+        // 必须完整匹配数字字面量（整数[.小数][e指数]）：
+        // 不能只匹配 16 位以上连续数字，否则 -0.10000000000000001 小数点后的
+        // 长数字串会被单独替换，产生 -0."__PLACEHOLDER__" 非法文本导致解析失败
         const replaced = withoutStrings.replace(
-            /-?\d{16,}(\.\d+)?([eE][+-]?\d+)?/g,
+            /-?\d+(\.\d+)?([eE][+-]?\d+)?/g,
             (match) => {
+                // 快速跳过：短数字且无科学计数法，一定能被 JS 安全往返
+                if (match.length < 16 && !/[eE]/.test(match)) return match;
                 const num = Number(match);
-                if (Number.isFinite(num) && String(num) === match) return match;
+                if (Number.isFinite(num)) {
+                    // 带指数的有限数值（如 1e5、1.5e-7）值可精确表示，交给 JSON.parse
+                    if (/[eE]/.test(match)) return match;
+                    // 无指数：文本往返校验，可往返则安全
+                    if (String(num) === match) return match;
+                }
+                // 溢出（如 1e999）或文本不可往返的超精度数字：保留原始文本
                 const key = placeholder + (counter++) + '"';
                 bigInts.push({ key: key.slice(1, -1), raw: match });
                 return key;
@@ -510,7 +522,7 @@
         if (hasBigIntInObj(data)) {
             const tip = document.createElement('div');
             tip.className = 'bigint-tip';
-            tip.innerHTML = '⚠️ JSON 中存在大数，JavaScript 会丢失精度，建议使用 string 存储';
+            tip.innerHTML = '⚠️ JSON 中存在超出 JavaScript 安全精度的大数，已按原始数值保留，未丢失精度';
             output.appendChild(tip);
         }
         const indent = getIndent();
