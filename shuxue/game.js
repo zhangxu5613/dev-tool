@@ -80,7 +80,8 @@
       "mode-paren": "paren",
       "mode-expand": "expand",
       "mode-algebra": "algebra",
-      "mode-equation": "equation"
+      "mode-equation": "equation",
+      "mode-decimal": "decimal"
     };
     const types = [];
     Object.keys(map).forEach((id) => { if ($(id).checked) types.push(map[id]); });
