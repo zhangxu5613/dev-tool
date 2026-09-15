@@ -6,8 +6,8 @@
   "use strict";
 
   const $ = (id) => document.getElementById(id);
-  const WRONG_KEY = "shuxue_wrong_book_v1";
-  const SCORE_KEY = "shuxue_total_correct_v1";
+  const WRONG_KEY = "math_wrong_book_v1";
+  const SCORE_KEY = "math_total_correct_v1";
 
   // ---------- 持久化 ----------
   function loadWrong() {

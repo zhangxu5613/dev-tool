@@ -1,6 +1,6 @@
 /* ============================================================
  * 语文·汉字题生成器
- * 对外暴露 window.YuwenGen，与 shuxue 的 MathGen 接口保持一致：
+ * 对外暴露 window.YuwenGen，与 math 的 MathGen 接口保持一致：
  *   generateQuestions(types, level, count) -> [题目对象]
  *   题目对象 { type, typeName, prompt, extra, answer, choices, hint, key }
  *
