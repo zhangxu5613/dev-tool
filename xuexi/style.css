@@ -1,0 +1,128 @@
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html { font-size: 16px; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif;
+  /* 导航页用紫蓝渐变，作为三个科目页的"上一层" */
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  padding: 24px 12px calc(24px + env(safe-area-inset-bottom));
+  touch-action: manipulation;
+}
+
+#app { width: 100%; max-width: 480px; }
+
+h1 {
+  color: #fff;
+  text-align: center;
+  margin-bottom: 8px;
+  font-size: 26px;
+}
+
+.subtitle {
+  color: rgba(255,255,255,.92);
+  text-align: center;
+  margin-bottom: 22px;
+  font-size: 13px;
+  padding: 0 8px;
+  line-height: 1.7;
+}
+
+/* ---------- 导航卡片 ---------- */
+.nav-list { display: flex; flex-direction: column; gap: 14px; }
+
+.nav-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #fff;
+  border-radius: 18px;
+  padding: 18px 16px;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 5px 18px rgba(0,0,0,.16);
+  /* 左侧色条标识科目，颜色与各科目页主色一致 */
+  border-left: 6px solid #ccc;
+  transition: transform .15s ease, box-shadow .15s ease;
+  min-height: 92px;
+}
+.nav-card:active {
+  transform: scale(.985);
+  box-shadow: 0 3px 10px rgba(0,0,0,.2);
+}
+
+/* 各科目主色：与对应练习页配色呼应 */
+.nav-math    { border-left-color: #2196f3; }
+.nav-chinese { border-left-color: #b8405e; }
+.nav-english { border-left-color: #43a047; }
+.nav-ai      { border-left-color: #0f9b8e; }
+
+.nav-icon {
+  font-size: 38px;
+  line-height: 1;
+  flex-shrink: 0;
+  width: 46px;
+  text-align: center;
+}
+
+.nav-body { flex: 1; min-width: 0; }
+
+.nav-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #222;
+  margin-bottom: 4px;
+}
+
+.nav-desc {
+  font-size: 12px;
+  color: #888;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.nav-tags { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 6px; }
+
+.tag {
+  display: inline-block;
+  font-size: 11px;
+  color: #666;
+  background: #f0f0f5;
+  border-radius: 20px;
+  padding: 3px 9px;
+}
+
+.nav-arrow {
+  font-size: 20px;
+  color: #bbb;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+/* 各科目卡片的标题与箭头也带上主色，增强区分 */
+.nav-math    .nav-title, .nav-math    .nav-arrow { color: #1976d2; }
+.nav-chinese .nav-title, .nav-chinese .nav-arrow { color: #b8405e; }
+.nav-english .nav-title, .nav-english .nav-arrow { color: #388e3c; }
+.nav-ai      .nav-title, .nav-ai      .nav-arrow { color: #0c7a70; }
+
+.footer-tip {
+  color: rgba(255,255,255,.8);
+  text-align: center;
+  font-size: 12px;
+  margin-top: 22px;
+  line-height: 1.7;
+  padding: 0 10px;
+}
+
+/* 小屏适配 */
+@media (max-width: 360px) {
+  h1 { font-size: 23px; }
+  .nav-card { padding: 15px 13px; gap: 11px; min-height: 84px; }
+  .nav-icon { font-size: 32px; width: 38px; }
+  .nav-title { font-size: 18px; }
+  .nav-desc { font-size: 11px; }
+}

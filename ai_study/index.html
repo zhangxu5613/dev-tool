@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 出题 · DeepSeek</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ① 需求输入页 -->
+  <div id="screen-start" class="screen active">
+    <a class="back-home" href="../xuexi/index.html">‹ 学习乐园</a>
+    <h1>🤖 AI 出题</h1>
+    <p class="subtitle">说出你想练什么，DeepSeek 现场出选择题 —— 自动判分，错题解析！</p>
+
+    <div class="card">
+      <h3>① 你想练什么？</h3>
+      <textarea id="req-input" class="req-input" rows="3"
+        placeholder="例如：三年级两位数乘法竖式计算&#10;或：唐诗名句填空&#10;或：Java 里 HashMap 的线程安全问题"></textarea>
+      <div class="chip-row" id="chip-row">
+        <button class="chip" data-req="三年级数学：两位数乘两位数的竖式计算">竖式乘法</button>
+        <button class="chip" data-req="小学语文：成语意思与用法辨析">成语辨析</button>
+        <button class="chip" data-req="小学英语：一般现在时与现在进行时的区分">英语时态</button>
+        <button class="chip" data-req="初中物理：光的反射与折射现象">光的反射</button>
+        <button class="chip" data-req="Java 基础：集合框架 List/Set/Map 的区别与选用">Java 集合</button>
+        <button class="chip" data-req="中国历史常识：唐宋时期的重要事件与人物">历史常识</button>
+      </div>
+      <p class="level-tip">💡 只写主题也行，AI 会自动把它扩写成完整的出题要求</p>
+    </div>
+
+    <div class="card">
+      <h3>② 难度与题量</h3>
+      <div class="mode-row">
+        <label class="chk"><input type="radio" name="level" value="1" checked> 🟢 简单</label>
+        <label class="chk"><input type="radio" name="level" value="2"> 🟡 中等</label>
+        <label class="chk"><input type="radio" name="level" value="3"> 🔴 挑战</label>
+      </div>
+      <div class="mode-row" style="margin-top:8px">
+        <label class="chk"><input type="radio" name="qcount" value="5" checked> 5 题</label>
+        <label class="chk"><input type="radio" name="qcount" value="10"> 10 题</label>
+        <label class="chk"><input type="radio" name="qcount" value="15"> 15 题</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>③ DeepSeek 接口设置</h3>
+      <input type="password" id="api-key" class="req-input single" placeholder="DeepSeek API Key（仅存本机浏览器）">
+      <div class="mode-row" style="margin-top:8px">
+        <label class="chk"><input type="radio" name="model" value="deepseek-v4-flash" checked> ⚡ flash（快）</label>
+        <label class="chk"><input type="radio" name="model" value="deepseek-v4-pro"> 🧠 pro（强）</label>
+      </div>
+      <p class="level-tip">
+        Key 只保存在本机 localStorage，不会上传到任何第三方；
+        可在 <span class="mono">platform.deepseek.com</span> 获取。
+      </p>
+    </div>
+
+    <button class="btn-main" id="btn-gen">让 AI 出题 🚀</button>
+    <button class="btn-sub" id="btn-review">📕 错题本复习 (<span id="wrong-count">0</span>)</button>
+    <div class="stat-line">🏅 累计答对 <span id="master-count">0</span> 题</div>
+    <button class="btn-sub btn-danger" id="btn-clear-wrong">清空错题本</button>
+  </div>
+
+  <!-- ② 出题等待页 -->
+  <div id="screen-loading" class="screen">
+    <h1>🤖 AI 正在出题</h1>
+    <div class="card loading-card">
+      <div class="spinner"></div>
+      <div id="load-step" class="load-step">正在整理你的出题需求…</div>
+      <div id="load-req" class="load-req"></div>
+      <p class="level-tip" style="text-align:center">首次生成通常需要 10～30 秒，请稍候</p>
+    </div>
+    <div id="load-error" class="load-error" style="display:none"></div>
+    <button class="btn-sub" id="btn-cancel">取消，返回修改需求</button>
+  </div>
+
+  <!-- ③ 答题页 -->
+  <div id="screen-quiz" class="screen">
+    <div class="quiz-top">
+      <div class="progress-wrap"><div id="progress-bar"></div></div>
+      <div class="quiz-stats">
+        <span id="quiz-progress">1 / 5</span>
+        <span id="quiz-score">⭐ 0</span>
+        <span id="quiz-streak">🔥 0</span>
+      </div>
+    </div>
+
+    <div class="card question-card">
+      <div id="q-type-badge" class="badge">AI 出题</div>
+      <div id="q-retry-badge" class="badge badge-retry" style="display:none">🔁 错题重现</div>
+      <div id="q-prompt" class="q-prompt"></div>
+      <div id="q-extra" class="q-extra"></div>
+
+      <div id="answer-choices" class="choices"></div>
+      <button class="btn-hint" id="btn-hint">💡 提示一下</button>
+    </div>
+
+    <div id="feedback" class="feedback"></div>
+    <button class="btn-main" id="btn-next" style="display:none">下一题 ➜</button>
+    <button class="btn-sub" id="btn-quit">结束本轮</button>
+  </div>
+
+  <!-- ④ 结算页 -->
+  <div id="screen-result" class="screen">
+    <h1 id="result-title">🎉 练习完成！</h1>
+    <div class="card result-card">
+      <div class="result-row"><span>出题需求</span><b id="r-topic">—</b></div>
+      <div class="result-row"><span>难度</span><b id="r-level">简单</b></div>
+      <div class="result-row"><span>得分</span><b id="r-score">0</b></div>
+      <div class="result-row"><span>答对</span><b id="r-correct">0</b></div>
+      <div class="result-row"><span>答错</span><b id="r-wrong">0</b></div>
+      <div class="result-row"><span>正确率</span><b id="r-rate">0%</b></div>
+      <div class="result-row"><span>最高连击</span><b id="r-streak">0</b></div>
+      <div class="result-row"><span>答题总时间</span><b id="r-total-time">0秒</b></div>
+    </div>
+    <div class="card" id="r-wrong-card" style="display:none">
+      <h3>📕 本轮错题（已加入错题本）</h3>
+      <ul id="r-wrong-list" class="wrong-list"></ul>
+    </div>
+    <button class="btn-main" id="btn-again">换一批新题 🔄</button>
+    <button class="btn-sub" id="btn-home">返回首页</button>
+  </div>
+
+</div>
+<script src="deepseek.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

@@ -164,3 +164,18 @@ select:focus { border-color: #43cea2; }
   .q-prompt { font-size: 20px; }
   .choice-btn { font-size: 17px; padding: 14px 10px; }
 }
+
+/* 返回学习乐园导航页 */
+.back-home {
+  display: inline-block;
+  color: rgba(255,255,255,.95);
+  background: rgba(255,255,255,.2);
+  border: 1px solid rgba(255,255,255,.45);
+  border-radius: 20px;
+  padding: 7px 14px;
+  font-size: 13px;
+  text-decoration: none;
+  margin-bottom: 12px;
+  min-height: 34px;
+}
+.back-home:active { background: rgba(255,255,255,.32); }
