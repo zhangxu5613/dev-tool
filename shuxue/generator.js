@@ -372,117 +372,205 @@
   }
 
   // ============================================================
-  // 题型 7：小数加减混合运算（两位小数 · 整数部分百以内）
-  // 全程以"分"为单位做整数运算，避免浮点误差
+  // 题型 7：小数加减法（按难度分档）
+  //   简单：1 位整数 + 1 位小数，单步加或减      （如 7.3 + 5.8）
+  //   中等：2 位整数 + 2 位小数，单步加或减      （如 46.75 − 18.36）
+  //   挑战：2 位整数 + 2 位小数，三数加减混合    （如 31.77 + 28.39 − 24.86）
+  // 全程以最小单位（0.1 或 0.01）的整数做运算，避免浮点误差
   // 干扰项：模拟竖式计算中"忘记进位 / 忘记借位"的典型错误，
   // 并让错误从出错的那一步传播到最终答案
   // ============================================================
 
-  // 分 → "x.yz" 字符串
-  function fmtCents(c) {
-    const int = Math.floor(c / 100), frac = c % 100;
-    return int + "." + String(frac).padStart(2, "0");
+  // 整数单位值 → 小数字符串。dp = 小数位数（1 或 2）
+  function fmtScaled(v, dp) {
+    const base = dp === 1 ? 10 : 100;
+    const int = Math.floor(v / base), frac = v % base;
+    return int + "." + String(frac).padStart(dp, "0");
   }
 
-  // 单步竖式计算（单位：分）。返回 { result, wrongs: [{v, why}] }
+  // 各数位中文名（由最低位往高位）：dp=2 → [百分位, 十分位, 个位, 十位]
+  function digitNames(dp) {
+    return dp === 2
+      ? ["百分位", "十分位", "个位", "十位"]
+      : ["十分位", "个位", "十位"];
+  }
+
+  // 单步竖式计算。返回 { result, wrongs: [{v, why}] }
   // wrongs：这一步"忘记进位/借位"会得到的错误结果（仅收集纯单点错误）
-  function decimalStep(cur, op, x) {
+  // 通用于任意小数位数：逐位模拟，第 i 位向第 i+1 位的进/借位被遗漏时结果的偏差
+  function decimalStep(cur, op, x, dp) {
     const wrongs = [];
+    const names = digitNames(dp);
+    const digit = (n, i) => Math.floor(n / Math.pow(10, i)) % 10;
+    // 最高需要检查的位：进/借位只可能发生在两数实际拥有的数位上
+    const maxPos = names.length - 1;
+
     if (op === "+") {
       const result = cur + x;
-      const c1 = cur % 10, c2 = x % 10;
-      const carry1 = c1 + c2 >= 10;
-      if (carry1) wrongs.push({ v: result - 10, why: "百分位相加满 10，要向十分位进 1" });
-      const t1 = Math.floor(cur / 10) % 10, t2 = Math.floor(x / 10) % 10;
-      if (t1 + t2 + (carry1 ? 1 : 0) >= 10) wrongs.push({ v: result - 100, why: "十分位相加满 10，要向个位进 1" });
+      let carry = 0;
+      for (let i = 0; i < maxPos; i++) {
+        const s = digit(cur, i) + digit(x, i) + carry;
+        if (s >= 10) {
+          // 该位满 10 需向上一位进 1；遗漏则结果少 10^(i+1)
+          wrongs.push({
+            v: result - Math.pow(10, i + 1),
+            why: `${names[i]}相加满 10，要向${names[i + 1]}进 1`
+          });
+          // 进位加错位置：把进上去的 1 又留在了本位
+          wrongs.push({
+            v: result - Math.pow(10, i + 1) + Math.pow(10, i),
+            why: `${names[i]}进位的 1 要加到${names[i + 1]}，不能留在${names[i]}`,
+            weak: true
+          });
+          carry = 1;
+        } else {
+          // 该位未满 10 却多进了 1（进位判断做反）
+          wrongs.push({
+            v: result + Math.pow(10, i + 1),
+            why: `${names[i]}相加未满 10，不该向${names[i + 1]}进位`,
+            weak: true
+          });
+          carry = 0;
+        }
+      }
       return { result, wrongs };
     }
+
     // 减法（题目保证 cur >= x）
     const result = cur - x;
-    const c1 = cur % 10, c2 = x % 10;
-    const borrow1 = c1 < c2;
-    const t1o = Math.floor(cur / 10) % 10, t2 = Math.floor(x / 10) % 10;
-    // 借了 1 但十分位忘扣（仅当十分位本就够减时才是纯单点错误）
-    if (borrow1 && t1o - t2 >= 0) wrongs.push({ v: result + 10, why: "百分位不够减，要向十分位借 1" });
-    const t1e = t1o - (borrow1 ? 1 : 0); // 正确流程中十分位的实际值
-    const borrow2 = t1e < t2;
-    const o1o = Math.floor(cur / 100) % 10, o2 = Math.floor(x / 100) % 10;
-    if (borrow2 && o1o - o2 >= 0) wrongs.push({ v: result + 100, why: "十分位不够减，要向个位借 1" });
+    let borrow = 0;
+    for (let i = 0; i < maxPos; i++) {
+      const top = digit(cur, i) - borrow;
+      const bot = digit(x, i);
+      if (top < bot) {
+        // 该位不够减需向上一位借 1；只有上一位本身够减时，遗漏才是纯单点错误
+        const upTop = digit(cur, i + 1), upBot = digit(x, i + 1);
+        if (upTop - upBot >= 0) {
+          wrongs.push({
+            v: result + Math.pow(10, i + 1),
+            why: `${names[i]}不够减，要向${names[i + 1]}借 1`
+          });
+          // 借位后本位应加 10，只加了 1
+          wrongs.push({
+            v: result - 9 * Math.pow(10, i),
+            why: `向${names[i + 1]}借 1，${names[i]}要加 10 再减`,
+            weak: true
+          });
+        }
+        borrow = 1;
+      } else {
+        // 该位够减却多借了 1（借位判断做反）
+        wrongs.push({
+          v: result - Math.pow(10, i + 1),
+          why: `${names[i]}够减，不用向${names[i + 1]}借位`,
+          weak: true
+        });
+        borrow = 0;
+      }
+    }
     return { result, wrongs };
   }
 
   function genDecimal(level) {
-    const intMax = level === 1 ? 49 : 99;      // 操作数整数部分上限（百以内）
-    const intMin = level >= 3 ? 20 : 1;        // 挑战难度数字更大
-    const MAXC = 99 * 100 + 99;                // 9999 分 = 99.99
+    // 难度参数：小数位数、整数部分范围、运算步数
+    const dp = level === 1 ? 1 : 2;                 // 小数位数
+    const base = dp === 1 ? 10 : 100;               // 最小单位换算基数
+    const steps = level >= 3 ? 2 : 1;               // 运算步数（1=两数，2=三数混合）
+    const intMin = 1;
+    const intMax = level === 1 ? 9 : 99;            // 简单=1 位整数，中等/挑战=2 位整数
+    const MAXC = intMax * base + (base - 1);        // 结果上限（简单 9.9 / 其余 99.99）
 
-    for (let attempt = 0; attempt < 300; attempt++) {
-      // 三个两位小数加减混合：a + b − c 或 a − b + c
-      const ops = Math.random() < 0.5 ? ["+", "-"] : ["-", "+"];
-      const genNum = () => ri(intMin, intMax) * 100 + ri(1, 99); // 整数部分 + 非零小数部分
-      const a = genNum(), b = genNum(), c = genNum();
-      const xs = [b, c];
+    for (let attempt = 0; attempt < 400; attempt++) {
+      // 运算符：单步为纯加或纯减；两步为加减混合
+      const ops = steps === 1
+        ? [pick(["+", "-"])]
+        : (Math.random() < 0.5 ? ["+", "-"] : ["-", "+"]);
 
-      // 从左到右正确计算，记录每步结果与进/借位错误点
+      // 整数部分 + 非零小数部分
+      const genNum = () => ri(intMin, intMax) * base + ri(1, base - 1);
+      const a = genNum();
+      const xs = [];
+      for (let s = 0; s < steps; s++) xs.push(genNum());
+
+      // 从左到右正确计算，记录每步的进/借位错误点
       let cur = a, ok = true;
-      const midResults = [], stepWrongLists = [];
-      for (let s = 0; s < 2; s++) {
-        const r = decimalStep(cur, ops[s], xs[s]);
-        if (r.result < 0 || r.result > MAXC) { ok = false; break; } // 中间出负或超百
-        midResults.push(r.result);
+      const stepWrongLists = [];
+      for (let s = 0; s < steps; s++) {
+        const r = decimalStep(cur, ops[s], xs[s], dp);
+        if (r.result < 0 || r.result > MAXC) { ok = false; break; } // 中间出负或越界
         stepWrongLists.push(r.wrongs);
         cur = r.result;
       }
       if (!ok) continue;
       const final = cur;
-      if (final < 1) continue; // 排除 0.00
+      if (final < 1) continue; // 排除 0
 
-      // 必须存在至少一个进位/借位点，保证干扰项聚焦
-      if (stepWrongLists.every((l) => l.length === 0)) continue;
+      // 必须存在至少一个真实的进位/借位点，保证题目确实考察进位借位
+      if (stepWrongLists.every((l) => l.every((w) => w.weak))) continue;
 
-      // 错误传播：第 s 步进/借位出错后，后续步骤仍正确计算
-      const wrongFinals = new Set();
-      for (let s = 0; s < 2; s++) {
+      // 错误传播：第 s 步进/借位出错后，后续步骤仍按正确方式计算
+      // strong = 真实进/借位失误（优先作为干扰项），weak = 进借位判断做反
+      const strongFinals = new Set(), weakFinals = new Set();
+      for (let s = 0; s < steps; s++) {
         for (const w of stepWrongLists[s]) {
           let v = w.v, valid = v >= 0;
-          for (let t = s + 1; t < 2 && valid; t++) {
+          for (let t = s + 1; t < steps && valid; t++) {
             v = ops[t] === "+" ? v + xs[t] : v - xs[t];
             if (v < 0) valid = false;
           }
-          if (valid && v !== final) wrongFinals.add(v);
+          if (valid && v !== final) (w.weak ? weakFinals : strongFinals).add(v);
         }
       }
 
       const opSym = (o) => (o === "+" ? "+" : "−");
-      const prompt = `${fmtCents(a)} ${opSym(ops[0])} ${fmtCents(b)} ${opSym(ops[1])} ${fmtCents(c)} = ?`;
-      const answer = fmtCents(final);
+      let prompt = fmtScaled(a, dp);
+      for (let s = 0; s < steps; s++) prompt += ` ${opSym(ops[s])} ${fmtScaled(xs[s], dp)}`;
+      prompt += " = ?";
+      const answer = fmtScaled(final, dp);
 
-      // 组装选项：进/借位错误值优先（离正确答案越近越像真实失误）
-      const cand = [...wrongFinals].filter((v) => v >= 0 && v <= MAXC)
-        .sort((p, q) => Math.abs(p - final) - Math.abs(q - final));
+      // 组装选项：真实进/借位失误优先，其次"进借位判断做反"，最后才用数位偏移兜底
+      const byNear = (p, q) => Math.abs(p - final) - Math.abs(q - final);
+      const inRange = (v) => v >= 0 && v <= MAXC;
       const chosen = [];
       const seen = new Set([answer]);
-      for (const v of cand) {
-        const s = fmtCents(v);
-        if (!seen.has(s)) { seen.add(s); chosen.push(s); }
-        if (chosen.length === 3) break;
-      }
-      // 兜底：±0.1 / ±1 / ±0.01 等小幅偏移补足
-      for (const d of [10, -10, 100, -100, 1, -1, 2, -2, 1000, -1000]) {
-        if (chosen.length === 3) break;
-        const v = final + d;
-        if (v < 0 || v > MAXC) continue;
-        const s = fmtCents(v);
-        if (!seen.has(s)) { seen.add(s); chosen.push(s); }
-      }
+      const pushVals = (vals) => {
+        for (const v of vals) {
+          if (chosen.length === 3) return;
+          if (!inRange(v)) continue;
+          const s = fmtScaled(v, dp);
+          if (!seen.has(s)) { seen.add(s); chosen.push(s); }
+        }
+      };
+      pushVals([...strongFinals].sort(byNear));
+      pushVals([...weakFinals].sort(byNear));
+      // 兜底：按数位量级做小幅偏移补足（整位数偏移，仍属进位借位量级）
+      const unit = Math.pow(10, dp);            // 1 个"个位"对应的最小单位数
+      const fallbacks = [];
+      for (const k of [1, unit, unit * 10]) fallbacks.push(k, -k);
+      pushVals(fallbacks.map((d) => final + d));
+      if (chosen.length < 3) continue; // 选项凑不齐则换题
 
-      // 提示：指向第一个进/借位点
-      const firstWrong = stepWrongLists[0][0] || stepWrongLists[1][0];
-      const hint = `从左往右依次算，小数点对齐（相同数位对齐）。` +
-        `算 ${fmtCents(a)} ${opSym(ops[0])} ${fmtCents(b)} 时：${firstWrong.why}。`;
+      // 提示：指向第一个真实进/借位点（找不到再退回任意点）
+      let firstWrong = null, firstStep = 0;
+      for (let s = 0; s < steps && !firstWrong; s++) {
+        for (const w of stepWrongLists[s]) {
+          if (!w.weak) { firstWrong = w; firstStep = s; break; }
+        }
+      }
+      if (!firstWrong) {
+        for (let s = 0; s < steps && !firstWrong; s++) {
+          if (stepWrongLists[s].length) { firstWrong = stepWrongLists[s][0]; firstStep = s; }
+        }
+      }
+      const stepExpr = firstStep === 0
+        ? `${fmtScaled(a, dp)} ${opSym(ops[0])} ${fmtScaled(xs[0], dp)}`
+        : `前一步结果 ${opSym(ops[firstStep])} ${fmtScaled(xs[firstStep], dp)}`;
+      const hint = (steps === 1 ? "竖式计算，小数点对齐（相同数位对齐）。" : "从左往右依次算，小数点对齐（相同数位对齐）。") +
+        `算 ${stepExpr} 时：${firstWrong.why}。`;
 
+      const typeName = steps === 1 ? "小数加减法" : "小数加减混合";
       return {
-        type: "decimal", typeName: "小数加减混合",
+        type: "decimal", typeName,
         prompt, extra: "📐 小数点对齐 · 留意进位与借位",
         answer,
         choices: shuffle([answer, ...chosen]),
@@ -512,7 +600,7 @@
     expand: "括号拆除",
     algebra: "表达式变形",
     equation: "解方程",
-    decimal: "小数加减混合"
+    decimal: "小数加减法"
   };
 
   // 生成一批不重复的题目
