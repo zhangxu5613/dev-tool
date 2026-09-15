@@ -76,6 +76,94 @@
     return r ? r.value : "deepseek-v4-flash";
   }
 
+  // ---------- 进度时间线控制 ----------
+  const TL_STEPS = ["expand", "send", "receive", "parse", "validate"];
+  let _elapsedTimer = null;
+  let _elapsedStart = 0;
+
+  function resetTimeline() {
+    TL_STEPS.forEach(function (s) {
+      const el = $("tl-" + s);
+      if (el) { el.className = "tl-step"; }
+    });
+    $("tl-stream-box").style.display = "none";
+    $("tl-stream-text").textContent = "";
+    $("tl-stream-len").textContent = "";
+    $("tl-validate-result").style.display = "none";
+    $("tl-validate-result").innerHTML = "";
+    $("tl-elapsed").textContent = "⏱ 已用时 0 秒";
+    if (_elapsedTimer) { clearInterval(_elapsedTimer); _elapsedTimer = null; }
+  }
+
+  function startElapsedTimer() {
+    _elapsedStart = Date.now();
+    _elapsedTimer = setInterval(function () {
+      var sec = Math.round((Date.now() - _elapsedStart) / 1000);
+      $("tl-elapsed").textContent = "⏱ 已用时 " + sec + " 秒";
+    }, 500);
+  }
+
+  function stopElapsedTimer() {
+    if (_elapsedTimer) { clearInterval(_elapsedTimer); _elapsedTimer = null; }
+  }
+
+  function setTimelineStep(step) {
+    var found = false;
+    TL_STEPS.forEach(function (s) {
+      var el = $("tl-" + s);
+      if (!el) return;
+      if (s === step) {
+        el.className = "tl-step active";
+        found = true;
+      } else if (!found) {
+        el.className = "tl-step done";
+      } else {
+        el.className = "tl-step";
+      }
+    });
+  }
+
+  function setTimelineError(step) {
+    var el = $("tl-" + step);
+    if (el) el.className = "tl-step error active";
+  }
+
+  function onProgress(step, extra) {
+    if (step === "expand" || step === "send" || step === "parse" || step === "validate") {
+      setTimelineStep(step);
+    } else if (step === "receive") {
+      setTimelineStep("receive");
+      $("tl-stream-box").style.display = "block";
+    } else if (step === "receiving" && extra) {
+      // 流式更新：显示尾部文本片段
+      var text = extra.text || "";
+      var tail = text.length > 200 ? "…" + text.slice(-200) : text;
+      $("tl-stream-text").textContent = tail;
+      $("tl-stream-len").textContent = "已接收 " + extra.len + " 字符";
+      // 自动滚到底
+      var box = $("tl-stream-box");
+      box.scrollTop = box.scrollHeight;
+    } else if (step === "validate_done" && extra) {
+      var html = '<span class="vr-ok">✅ 通过 ' + extra.passed + ' 题</span>';
+      if (extra.dropped && extra.dropped.length > 0) {
+        html += '　<span class="vr-drop">⚠ 丢弃 ' + extra.dropped.length + ' 题</span>';
+        extra.dropped.forEach(function (d) {
+          html += '<br><span class="vr-drop">　第' + d.i + '题：' + escapeHTML(d.reason) + '</span>';
+        });
+      }
+      $("tl-validate-result").innerHTML = html;
+      $("tl-validate-result").style.display = "block";
+      // 标记 validate 完成
+      $("tl-validate").className = "tl-step done";
+    } else if (step === "done") {
+      TL_STEPS.forEach(function (s) {
+        var el = $("tl-" + s);
+        if (el) el.className = "tl-step done";
+      });
+      stopElapsedTimer();
+    }
+  }
+
   // ---------- AI 出题流程 ----------
   async function doGenerate(req) {
     const level = getLevel();
@@ -90,13 +178,12 @@
     try { localStorage.setItem(REQ_KEY, req); } catch (e) {}
     state.lastReq = req;
 
-    // 进入等待页，展示需求与分步提示
+    // 进入等待页
     showScreen("loading");
     $("load-error").style.display = "none";
     $("load-req").textContent = "「" + req + "」";
-    $("load-step").textContent = "正在整理你的出题需求…";
-    const t1 = setTimeout(() => { $("load-step").textContent = "AI 正在命题与设计干扰项…"; }, 2500);
-    const t2 = setTimeout(() => { $("load-step").textContent = "正在校对答案与解析…"; }, 9000);
+    resetTimeline();
+    startElapsedTimer();
 
     const ctrl = new AbortController();
     state.abort = ctrl;
@@ -104,17 +191,26 @@
     try {
       const result = await AIGen.generate({
         req: req, level: level, count: count, model: model,
-        apiKey: apiKey, signal: ctrl.signal
+        apiKey: apiKey, signal: ctrl.signal,
+        onStep: onProgress
       });
-      clearTimeout(t1); clearTimeout(t2);
+      stopElapsedTimer();
       state.abort = null;
       state.topic = result.topic;
       result.questions.forEach((q) => { q.topic = result.topic; });
+      // 短暂停留让用户看到完成状态
+      await new Promise(function (r) { setTimeout(r, 600); });
       startRound(result.questions, false, level);
     } catch (e) {
-      clearTimeout(t1); clearTimeout(t2);
+      stopElapsedTimer();
       state.abort = null;
-      if (e && e.name === "AbortError") return; // 用户主动取消，不报错
+      if (e && e.name === "AbortError") return;
+      // 在时间线上标记失败的步骤
+      var failStep = "send";
+      if (e.message && e.message.includes("JSON")) failStep = "parse";
+      else if (e.message && e.message.includes("合格")) failStep = "validate";
+      setTimelineError(failStep);
+
       const box = $("load-error");
       box.style.display = "block";
       box.innerHTML = "⚠️ " + escapeHTML(e.message || "出题失败，请重试") +

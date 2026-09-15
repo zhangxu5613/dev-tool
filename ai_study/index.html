@@ -67,10 +67,53 @@
   <div id="screen-loading" class="screen">
     <h1>🤖 AI 正在出题</h1>
     <div class="card loading-card">
-      <div class="spinner"></div>
-      <div id="load-step" class="load-step">正在整理你的出题需求…</div>
       <div id="load-req" class="load-req"></div>
-      <p class="level-tip" style="text-align:center">首次生成通常需要 10～30 秒，请稍候</p>
+
+      <!-- 进度时间线 -->
+      <div class="progress-timeline" id="progress-timeline">
+        <div class="tl-step" id="tl-expand" data-step="expand">
+          <div class="tl-icon"><span class="tl-dot"></span></div>
+          <div class="tl-body">
+            <div class="tl-title">扩写出题需求</div>
+            <div class="tl-desc">将你的简略描述补全为完整的出题要求</div>
+          </div>
+        </div>
+        <div class="tl-step" id="tl-send" data-step="send">
+          <div class="tl-icon"><span class="tl-dot"></span></div>
+          <div class="tl-body">
+            <div class="tl-title">发送到 DeepSeek</div>
+            <div class="tl-desc">调用 AI 接口，等待模型响应</div>
+          </div>
+        </div>
+        <div class="tl-step" id="tl-receive" data-step="receive">
+          <div class="tl-icon"><span class="tl-dot"></span></div>
+          <div class="tl-body">
+            <div class="tl-title">接收 AI 回复</div>
+            <div class="tl-desc">正在流式接收生成内容…</div>
+            <div class="tl-stream-box" id="tl-stream-box" style="display:none">
+              <div class="tl-stream-text" id="tl-stream-text"></div>
+              <div class="tl-stream-len" id="tl-stream-len"></div>
+            </div>
+          </div>
+        </div>
+        <div class="tl-step" id="tl-parse" data-step="parse">
+          <div class="tl-icon"><span class="tl-dot"></span></div>
+          <div class="tl-body">
+            <div class="tl-title">解析题目</div>
+            <div class="tl-desc">从 AI 回复中提取 JSON 题目数据</div>
+          </div>
+        </div>
+        <div class="tl-step" id="tl-validate" data-step="validate">
+          <div class="tl-icon"><span class="tl-dot"></span></div>
+          <div class="tl-body">
+            <div class="tl-title">校验题目质量</div>
+            <div class="tl-desc">检查选项、答案、解析是否完整正确</div>
+            <div class="tl-validate-result" id="tl-validate-result" style="display:none"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tl-elapsed" id="tl-elapsed">⏱ 已用时 0 秒</div>
     </div>
     <div id="load-error" class="load-error" style="display:none"></div>
     <button class="btn-sub" id="btn-cancel">取消，返回修改需求</button>

@@ -105,20 +105,89 @@ h1 { color: #fff; text-align: center; margin-bottom: 6px; font-size: 22px; }
 .stat-line span { font-weight: 700; color: #ffe08a; }
 
 /* ---------- 出题等待页 ---------- */
-.loading-card { text-align: center; padding: 26px 16px; }
-.spinner {
-  width: 44px; height: 44px; margin: 0 auto 16px;
-  border: 4px solid #e3f2ef;
-  border-top-color: #0f9b8e;
-  border-radius: 50%;
-  animation: spin 0.9s linear infinite;
-}
+.loading-card { padding: 18px 16px; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.load-step { font-size: 15px; color: #333; font-weight: 600; margin-bottom: 8px; }
 .load-req {
   font-size: 13px; color: #0c7a70; line-height: 1.6;
   background: #f0f9f7; border-radius: 10px;
-  padding: 10px; margin-bottom: 10px; word-break: break-word;
+  padding: 10px; margin-bottom: 14px; word-break: break-word;
+}
+
+/* 进度时间线 */
+.progress-timeline { position: relative; padding-left: 28px; }
+.tl-step { position: relative; padding-bottom: 16px; opacity: .45; transition: opacity .3s; }
+.tl-step:last-child { padding-bottom: 0; }
+.tl-step.active, .tl-step.done { opacity: 1; }
+
+/* 左侧竖线 */
+.tl-step::before {
+  content: ""; position: absolute; left: -20px; top: 18px;
+  width: 2px; height: calc(100% - 10px);
+  background: #d9ece9; transition: background .3s;
+}
+.tl-step:last-child::before { display: none; }
+.tl-step.done::before { background: #0f9b8e; }
+
+/* 圆点 */
+.tl-icon { position: absolute; left: -27px; top: 4px; width: 16px; height: 16px; }
+.tl-dot {
+  display: block; width: 14px; height: 14px;
+  border: 2px solid #d9ece9; border-radius: 50%;
+  background: #fff; transition: all .3s;
+}
+.tl-step.active .tl-dot {
+  border-color: #0f9b8e; background: #0f9b8e;
+  animation: tl-pulse 1.2s ease infinite;
+}
+.tl-step.done .tl-dot {
+  border-color: #0f9b8e; background: #0f9b8e;
+}
+.tl-step.error .tl-dot {
+  border-color: #ff5252; background: #ff5252;
+}
+@keyframes tl-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(15,155,142,.4); }
+  50% { box-shadow: 0 0 0 6px rgba(15,155,142,0); }
+}
+
+/* 勾号 */
+.tl-step.done .tl-dot::after {
+  content: "✓"; display: block; text-align: center;
+  font-size: 10px; font-weight: 700; color: #fff; line-height: 14px;
+  margin-top: -2px;
+}
+
+.tl-title { font-size: 14px; font-weight: 600; color: #333; }
+.tl-desc { font-size: 12px; color: #999; margin-top: 2px; line-height: 1.5; }
+.tl-step.active .tl-title { color: #0f9b8e; }
+.tl-step.error .tl-title { color: #ff5252; }
+
+/* 流式接收预览框 */
+.tl-stream-box {
+  margin-top: 8px; background: #f6f7f9; border-radius: 8px;
+  padding: 8px 10px; max-height: 120px; overflow-y: auto;
+  border: 1px solid #e8eaef;
+}
+.tl-stream-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px; color: #555; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-all;
+}
+.tl-stream-len {
+  font-size: 11px; color: #0f9b8e; margin-top: 4px; font-weight: 600;
+}
+
+/* 校验结果 */
+.tl-validate-result {
+  margin-top: 6px; font-size: 12px; line-height: 1.6; color: #555;
+}
+.tl-validate-result .vr-ok { color: #34c759; }
+.tl-validate-result .vr-drop { color: #ff9800; }
+
+/* 已用时 */
+.tl-elapsed {
+  text-align: center; font-size: 13px; color: #999;
+  margin-top: 14px; font-variant-numeric: tabular-nums;
 }
 .load-error {
   background: #fff; border-radius: 14px;
