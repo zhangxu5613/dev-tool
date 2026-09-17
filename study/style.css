@@ -60,6 +60,7 @@ h1 {
 .nav-chinese { border-left-color: #b8405e; }
 .nav-english { border-left-color: #43a047; }
 .nav-ai      { border-left-color: #0f9b8e; }
+.nav-textbook { border-left-color: #f57c00; }
 
 .nav-icon {
   font-size: 38px;
@@ -108,6 +109,7 @@ h1 {
 .nav-chinese .nav-title, .nav-chinese .nav-arrow { color: #b8405e; }
 .nav-english .nav-title, .nav-english .nav-arrow { color: #388e3c; }
 .nav-ai      .nav-title, .nav-ai      .nav-arrow { color: #0c7a70; }
+.nav-textbook .nav-title, .nav-textbook .nav-arrow { color: #e65100; }
 
 .footer-tip {
   color: rgba(255,255,255,.8);
